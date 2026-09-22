@@ -1,0 +1,26 @@
+# Dependencies
+backend/vendor/
+frontend/node_modules/
+
+# Secrets & local config
+backend/config/config.local.php
+.env
+.env.*
+
+# Build / package
+frontend/dist/
+dist-ovh/
+backend/storage/logos/*
+!backend/storage/logos/.gitkeep
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log
+
+# PHPUnit
+backend/.phpunit.cache/
+backend/.phpunit.result.cache
+backend/phpunit.xml.bak

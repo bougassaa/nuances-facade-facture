@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest'
+import {
+  centsToEurosInput,
+  eurosToCents,
+  formatDate,
+  formatMoney,
+  statusLabel,
+  typeLabel,
+} from './format'
+
+describe('formatMoney', () => {
+  it('affiche le format français avec euro', () => {
+    expect(formatMoney(123456)).toMatch(/1[\s\u202f]234,56\s*€/)
+  })
+
+  it('gère zéro', () => {
+    expect(formatMoney(0)).toMatch(/0,00\s*€/)
+  })
+})
+
+describe('formatDate', () => {
+  it('convertit YYYY-MM-DD en jj/mm/aaaa', () => {
+    expect(formatDate('2026-09-22')).toBe('22/09/2026')
+  })
+
+  it('accepte un datetime', () => {
+    expect(formatDate('2026-01-05 10:00:00')).toBe('05/01/2026')
+  })
+
+  it('renvoie tiret si vide', () => {
+    expect(formatDate(null)).toBe('—')
+    expect(formatDate(undefined)).toBe('—')
+  })
+})
+
+describe('eurosToCents / centsToEurosInput', () => {
+  it('parse virgule et point', () => {
+    expect(eurosToCents('12,50')).toBe(1250)
+    expect(eurosToCents('12.50')).toBe(1250)
+    expect(eurosToCents('1 234,56')).toBe(123456)
+  })
+
+  it('arrondit au centime', () => {
+    expect(eurosToCents('10,999')).toBe(1100)
+  })
+
+  it('formate les centimes en saisie', () => {
+    expect(centsToEurosInput(4500)).toBe('45,00')
+  })
+})
+
+describe('labels', () => {
+  it('libellés de statut sans paiement', () => {
+    expect(statusLabel('draft', 'quote')).toBe('Brouillon')
+    expect(statusLabel('sent', 'quote')).toBe('Envoyé')
+    expect(statusLabel('sent', 'invoice')).toBe('Envoyée')
+    expect(statusLabel('accepted', 'quote')).toBe('Accepté')
+    expect(statusLabel('rejected', 'quote')).toBe('Refusé')
+    expect(statusLabel('paid', 'invoice')).not.toBe('Payé')
+  })
+
+  it('libellés de type', () => {
+    expect(typeLabel('quote')).toBe('Devis')
+    expect(typeLabel('invoice')).toBe('Facture')
+  })
+})
