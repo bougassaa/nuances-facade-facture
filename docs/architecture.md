@@ -15,6 +15,7 @@ facture.nuances-facade.fr
     ├── vendor/
     ├── config/
     ├── storage/logos/
+    ├── storage/sessions/    # fichiers de session PHP (1 an)
     └── templates/pdf/
 ```
 
@@ -31,7 +32,7 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 - Front controller unique : toutes les routes `/api/*`.
 - Routeur minimal (méthode + chemin).
 - PDO MySQL, transactions pour émission et conversion.
-- Session PHP : cookie `HttpOnly`, `Secure` en HTTPS, `SameSite=Lax`, hôte `facture.nuances-facade.fr` uniquement.
+- Session PHP : cookie persistant 1 an (`HttpOnly`, `Secure` en HTTPS, `SameSite=Lax`), fichiers dans `storage/sessions/` (hors purge OVH). Hôte `facture.nuances-facade.fr` uniquement.
 
 ## Calculs monétaires
 

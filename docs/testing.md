@@ -23,7 +23,7 @@ cd backend && composer install && ./vendor/bin/phpunit
 | Repos | `tests/Repositories/*` | CRUD, send, convert, chantier, déduction, verrous (MySQL) |
 | PDF | `tests/Services/PdfTemplate*` | HTML acompte, signature, reste à payer |
 | HTTP | `tests/Http/*` | routage, matching des params |
-| Auth | `tests/Auth/*` | hash mot de passe, CSRF, setup unique |
+| Auth | `tests/Auth/*` | hash mot de passe, CSRF, setup unique, durée session 1 an (`#[RunInSeparateProcess]`) |
 
 Les tests d’intégration MySQL utilisent `config/config.local.php`. S’ils ne peuvent pas se connecter, ils font `markTestSkipped` — les tests unitaires purs restent obligatoires et doivent toujours passer.
 

@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
+use Nuances\Facture\Auth\SessionConfigurator;
 use Nuances\Facture\Database;
-use Nuances\Facture\Http\Router;
 
 $root = __DIR__;
 
@@ -20,20 +20,8 @@ date_default_timezone_set('Europe/Paris');
 
 $sessionName = $config['app']['session_name'] ?? 'NFSESSID';
 $secure = (bool) ($config['app']['secure_cookie'] ?? false);
-$host = (string) ($config['app']['host'] ?? '');
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_name($sessionName);
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => '',
-        'secure' => $secure,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
-    session_start();
-}
+SessionConfigurator::start($root, $sessionName, $secure);
 
 $pdo = Database::connect($config['db']);
 

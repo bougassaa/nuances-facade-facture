@@ -18,7 +18,7 @@ composer install --no-dev --optimize-autoloader --no-interaction
 
 echo "==> Assemble package"
 rm -rf "$OUT"
-mkdir -p "$PUBLIC_OUT/api" "$APP_OUT/public" "$APP_OUT/storage/logos"
+mkdir -p "$PUBLIC_OUT/api" "$APP_OUT/public" "$APP_OUT/storage/logos" "$APP_OUT/storage/sessions"
 
 # SPA
 cp -R "$ROOT/frontend/dist/." "$PUBLIC_OUT/"
@@ -39,6 +39,7 @@ cp "$ROOT/backend/config/config.example.php" "$APP_OUT/config/config.example.php
 cp "$ROOT/backend/bootstrap.php" "$APP_OUT/bootstrap.php"
 cp "$ROOT/backend/public/index.php" "$APP_OUT/public/index.php"
 cp "$ROOT/backend/storage/logos/.gitkeep" "$APP_OUT/storage/logos/.gitkeep"
+cp "$ROOT/backend/storage/sessions/.gitkeep" "$APP_OUT/storage/sessions/.gitkeep"
 cp "$ROOT/backend/sql/001_init.sql" "$APP_OUT/001_init.sql"
 cp "$ROOT/backend/sql/002_document_layout.sql" "$APP_OUT/002_document_layout.sql"
 

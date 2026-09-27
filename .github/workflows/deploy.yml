@@ -74,3 +74,4 @@ jobs:
             **/node_modules/**
             config/config.local.php
             storage/logos/**
+            storage/sessions/**

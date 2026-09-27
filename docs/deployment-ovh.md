@@ -26,6 +26,7 @@
     │   ├── config.example.php
     │   └── config.local.php   # secrets, ne pas versionner
     ├── storage/logos/
+    ├── storage/sessions/  # sessions PHP, ne pas écraser au déploiement
     └── templates/pdf/
 ```
 
@@ -56,7 +57,7 @@ Secrets du dépôt GitHub (mêmes identifiants que [nuances-facade](https://gith
 - `FTP_USERNAME`
 - `FTP_PASSWORD`
 
-`facture_app/config/config.local.php` et `facture_app/storage/logos/` ne sont ni envoyés ni supprimés. Après le premier déploiement, créer `config.local.php` sur le serveur et importer le SQL si la base n’existe pas encore.
+`facture_app/config/config.local.php`, `facture_app/storage/logos/` et `facture_app/storage/sessions/` ne sont ni envoyés ni supprimés. Après le premier déploiement, créer `config.local.php` sur le serveur et importer le SQL si la base n’existe pas encore.
 
 ## Configuration PHP
 
@@ -71,7 +72,7 @@ environment=production
 
 ## Session
 
-Cookie limité à l’hôte `facture.nuances-facade.fr` (pas de `Domain=.nuances-facade.fr`).
+Cookie persistant 1 an (`Max-Age` / `lifetime` = 31 536 000 s), limité à l’hôte `facture.nuances-facade.fr` (pas de `Domain=.nuances-facade.fr`). Les fichiers de session sont stockés dans `facture_app/storage/sessions/` pour éviter la purge du répertoire de sessions par défaut d’OVH.
 
 ## Première connexion
 

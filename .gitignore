@@ -12,6 +12,8 @@ frontend/dist/
 dist-ovh/
 backend/storage/logos/*
 !backend/storage/logos/.gitkeep
+backend/storage/sessions/*
+!backend/storage/sessions/.gitkeep
 
 # IDE / OS
 .DS_Store
