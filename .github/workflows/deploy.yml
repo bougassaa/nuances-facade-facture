@@ -1,0 +1,76 @@
+name: Deploy to OVH FTP
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+          tools: composer
+
+      - name: Tests frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+
+      - name: Tests backend
+        working-directory: backend
+        run: |
+          composer install --no-interaction
+          ./vendor/bin/phpunit
+
+      - name: Package OVH
+        run: bash ./scripts/package-ovh.sh
+
+      - name: Deploy site public (facture/)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.cluster027.hosting.ovh.net
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          timeout: 120000
+          local-dir: ./dist-ovh/facture/
+          server-dir: facture/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+
+      - name: Deploy application privée (facture_app/)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.cluster027.hosting.ovh.net
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          timeout: 120000
+          local-dir: ./dist-ovh/facture_app/
+          server-dir: facture_app/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            config/config.local.php
+            storage/logos/**

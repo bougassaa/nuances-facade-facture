@@ -29,7 +29,7 @@
     └── templates/pdf/
 ```
 
-`facture/api/index.php` fait `require` de `../../facture_app/bootstrap.php` (chemin relatif au FTP).
+`facture/api/index.php` charge `../../facture_app/public/index.php` (chemin relatif au FTP). Ce front controller inclut `facture_app/bootstrap.php`.
 
 ## Packaging local
 
@@ -39,6 +39,24 @@
 
 Génère `dist-ovh/facture/` et `dist-ovh/facture_app/`.
 Copier sur le serveur (SFTP), puis créer `facture_app/config/config.local.php` à partir de l’exemple.
+
+## Déploiement GitHub Actions
+
+À chaque push sur `main` (ou via « Run workflow »), `.github/workflows/deploy.yml` :
+
+1. Lance les tests (Vitest, PHPUnit).
+2. Exécute `./scripts/package-ovh.sh` (build Vite + Composer `--no-dev`).
+3. Envoie `dist-ovh/facture/` vers le dossier FTP `facture/` (racine du sous-domaine).
+4. Envoie `dist-ovh/facture_app/` vers `facture_app/`, au même niveau que `facture/` et `www/` (hors web).
+
+Serveur : `ftp.cluster027.hosting.ovh.net`, protocole FTP, port 21.
+
+Secrets du dépôt GitHub (mêmes identifiants que [nuances-facade](https://github.com/bougassaa/nuances-facade)) :
+
+- `FTP_USERNAME`
+- `FTP_PASSWORD`
+
+`facture_app/config/config.local.php` et `facture_app/storage/logos/` ne sont ni envoyés ni supprimés. Après le premier déploiement, créer `config.local.php` sur le serveur et importer le SQL si la base n’existe pas encore.
 
 ## Configuration PHP
 

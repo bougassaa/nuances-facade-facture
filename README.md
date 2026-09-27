@@ -29,3 +29,5 @@ cd frontend && npm test             # Vitest
 ```
 
 Déployer `dist-ovh/facture/` et `dist-ovh/facture_app/` (voir [docs/deployment-ovh.md](docs/deployment-ovh.md)).
+
+Un push sur `main` fait la même chose via GitHub Actions (build du front, puis FTP). Secrets requis : `FTP_USERNAME` et `FTP_PASSWORD`.

@@ -96,6 +96,8 @@ echo "1. Copier facture/ et facture_app/ à la racine FTP (à côté de www/)."
 echo "2. Créer facture_app/config/config.local.php depuis l'exemple."
 echo "3. Importer facture_app/001_init.sql dans MySQL (ou 002_document_layout.sql si base déjà créée)."
 
-# Restaure les deps de développement local après le package prod
-cd "$ROOT/backend"
-composer install --no-interaction >/dev/null
+# En local, restaure les deps de dev. Inutile en CI (le workspace est jeté).
+if [[ "${CI:-}" != "true" ]]; then
+  cd "$ROOT/backend"
+  composer install --no-interaction >/dev/null
+fi

@@ -24,6 +24,7 @@
 
 ## Fait (post-MVP)
 
+- [x] Déploiement FTP OVH via GitHub Actions (push sur `main`)
 - [x] PDF aligné documents artisan (chantier, pied de page, signature devis)
 - [x] Mention acompte devis (%) et déduction / reste à payer facture (sans suivi de règlement)
 - [x] Numérotation à 4 chiffres + seed compteur

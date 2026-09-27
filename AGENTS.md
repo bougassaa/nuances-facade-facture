@@ -69,3 +69,4 @@ Le proxy Vite envoie `/api` vers `http://127.0.0.1:8080`.
 ```
 
 Produit `dist-ovh/facture/` (public) et `dist-ovh/facture_app/` (privé).
+Un push sur `main` déclenche `.github/workflows/deploy.yml` : tests, build, envoi FTP de ces deux dossiers.
