@@ -54,6 +54,35 @@ final class TotalsCalculatorTest extends TestCase
         $this->assertSame(10550, $result['total_ttc_cents']);
     }
 
+    public function testVatByRateGrouped(): void
+    {
+        $result = (new TotalsCalculator())->compute([
+            ['quantity' => 1, 'unit_price_ht_cents' => 10000, 'vat_rate_bp' => 1000],
+            ['quantity' => 1, 'unit_price_ht_cents' => 20000, 'vat_rate_bp' => 1000],
+            ['quantity' => 1, 'unit_price_ht_cents' => 5000, 'vat_rate_bp' => 2000],
+        ]);
+        $this->assertCount(2, $result['vat_by_rate']);
+        $this->assertSame(1000, $result['vat_by_rate'][0]['vat_rate_bp']);
+        $this->assertSame(3000, $result['vat_by_rate'][0]['vat_cents']);
+        $this->assertSame(2000, $result['vat_by_rate'][1]['vat_rate_bp']);
+        $this->assertSame(1000, $result['vat_by_rate'][1]['vat_cents']);
+    }
+
+    public function testDepositAmountCents(): void
+    {
+        $calc = new TotalsCalculator();
+        // 1647250 * 30% = 494175
+        $this->assertSame(494175, $calc->depositAmountCents(1647250, 30));
+        $this->assertSame(0, $calc->depositAmountCents(10000, 0));
+    }
+
+    public function testRemainingDueCents(): void
+    {
+        $calc = new TotalsCalculator();
+        $this->assertSame(346610, $calc->remainingDueCents(515900, 169290));
+        $this->assertSame(0, $calc->remainingDueCents(100, 200));
+    }
+
     public function testFractionalQuantityRoundsPerLine(): void
     {
         // 1.333 * 100 = 133.3 → 133

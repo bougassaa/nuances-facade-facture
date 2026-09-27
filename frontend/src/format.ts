@@ -42,3 +42,12 @@ export function statusLabel(status: string, docType: string): string {
 export function typeLabel(docType: string): string {
   return docType === 'invoice' ? 'Facture' : 'Devis'
 }
+
+/** Libellé chantier prérempli : « Chantier NOM à VILLE ». */
+export function chantierFromClient(client: { name: string; city: string }): string {
+  const name = client.name.trim()
+  const city = client.city.trim()
+  if (!name) return ''
+  if (!city) return `Chantier ${name}`
+  return `Chantier ${name} à ${city}`
+}

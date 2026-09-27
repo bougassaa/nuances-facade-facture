@@ -17,10 +17,16 @@
 
 - [ ] Envoi email (SMTP OVH) à l’action « Envoyer »
 - [ ] Avoirs (credit notes)
-- [ ] Situations de travaux / acomptes
+- [ ] Situations de travaux / acomptes liés (report devis → facture, historique)
 - [ ] Multi-utilisateurs / rôles
 - [ ] Catalogue d’articles / ouvrages fréquents
 - [ ] Export comptable (CSV)
+
+## Fait (post-MVP)
+
+- [x] PDF aligné documents artisan (chantier, pied de page, signature devis)
+- [x] Mention acompte devis (%) et déduction / reste à payer facture (sans suivi de règlement)
+- [x] Numérotation à 4 chiffres + seed compteur
 
 ## Hors périmètre volontaire
 

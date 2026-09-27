@@ -26,6 +26,7 @@ describe('HomePage', () => {
                 status: 'sent',
                 number: 'DEV-2026-001',
                 client_name: 'Dupont',
+                object: 'Chantier Dupont à Lyon',
                 updated_at: '2026-09-22 10:00:00',
                 total_ttc_cents: 690000,
               },
@@ -44,7 +45,8 @@ describe('HomePage', () => {
     )
 
     expect(await screen.findByText(/Devis DEV-2026-001/)).toBeInTheDocument()
-    expect(screen.getByText('Dupont')).toBeInTheDocument()
+    expect(screen.getByText('Chantier Dupont à Lyon')).toBeInTheDocument()
+    expect(screen.queryByText('Dupont')).not.toBeInTheDocument()
     expect(screen.getByText('Envoyé')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/payé|paiement/i)
     expect(screen.queryByRole('link', { name: /gérer les clients/i })).not.toBeInTheDocument()

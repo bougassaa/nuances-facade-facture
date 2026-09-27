@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nuances\Facture\Repositories;
 
+use Nuances\Facture\Domain\DocumentType;
+use Nuances\Facture\Services\DocumentNumberService;
 use PDO;
 use RuntimeException;
 
@@ -12,6 +14,7 @@ final class CompanyRepository
     public function __construct(
         private readonly PDO $pdo,
         private readonly string $logosDir,
+        private readonly ?DocumentNumberService $numbers = null,
     ) {
     }
 
@@ -25,6 +28,7 @@ final class CompanyRepository
         $row['vat_rates'] = $this->pdo->query('SELECT * FROM vat_rates ORDER BY rate_bp DESC')->fetchAll();
         unset($row['logo_path']);
         $row['has_logo'] = $this->logoExists();
+        $row['counters'] = $this->currentCounters();
         return $row;
     }
 
@@ -35,6 +39,7 @@ final class CompanyRepository
               name = :name, address_line1 = :a1, address_line2 = :a2,
               postal_code = :cp, city = :city, phone = :phone, email = :email,
               siret = :siret, vat_number = :vat, iban = :iban, bic = :bic,
+              website = :website, legal_form = :legal_form, payment_terms = :payment_terms,
               vat_exempt = :exempt,
               legal_decennale = :dec, legal_late_penalties = :late,
               legal_recovery_fee = :fee, legal_quote_validity = :valid, legal_extra = :extra
@@ -52,6 +57,9 @@ final class CompanyRepository
             'vat' => (string) ($data['vat_number'] ?? ''),
             'iban' => (string) ($data['iban'] ?? ''),
             'bic' => (string) ($data['bic'] ?? ''),
+            'website' => (string) ($data['website'] ?? ''),
+            'legal_form' => trim((string) ($data['legal_form'] ?? 'EI')) ?: 'EI',
+            'payment_terms' => $data['payment_terms'] ?? null,
             'exempt' => !empty($data['vat_exempt']) ? 1 : 0,
             'dec' => $data['legal_decennale'] ?? null,
             'late' => $data['legal_late_penalties'] ?? null,
@@ -59,6 +67,12 @@ final class CompanyRepository
             'valid' => $data['legal_quote_validity'] ?? null,
             'extra' => $data['legal_extra'] ?? null,
         ]);
+
+        if ($this->numbers !== null && isset($data['last_quote_number'], $data['last_invoice_number'])) {
+            $year = (int) date('Y');
+            $this->numbers->seedIfEmpty(DocumentType::Quote, $year, (int) $data['last_quote_number']);
+            $this->numbers->seedIfEmpty(DocumentType::Invoice, $year, (int) $data['last_invoice_number']);
+        }
     }
 
     public function saveLogo(array $file): void
@@ -106,5 +120,23 @@ final class CompanyRepository
     private function logoExists(): bool
     {
         return $this->logoAbsolutePath() !== null;
+    }
+
+    /** @return array{year: int, quote: int, invoice: int} */
+    private function currentCounters(): array
+    {
+        $year = (int) date('Y');
+        $quote = 0;
+        $invoice = 0;
+        $stmt = $this->pdo->prepare('SELECT doc_type, last_number FROM counters WHERE year = :year');
+        $stmt->execute(['year' => $year]);
+        foreach ($stmt->fetchAll() as $row) {
+            if ($row['doc_type'] === DocumentType::Quote->value) {
+                $quote = (int) $row['last_number'];
+            } elseif ($row['doc_type'] === DocumentType::Invoice->value) {
+                $invoice = (int) $row['last_number'];
+            }
+        }
+        return ['year' => $year, 'quote' => $quote, 'invoice' => $invoice];
     }
 }

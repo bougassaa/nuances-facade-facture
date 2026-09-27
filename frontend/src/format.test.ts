@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   centsToEurosInput,
+  chantierFromClient,
   eurosToCents,
   formatDate,
   formatMoney,
@@ -62,5 +63,13 @@ describe('labels', () => {
   it('libellés de type', () => {
     expect(typeLabel('quote')).toBe('Devis')
     expect(typeLabel('invoice')).toBe('Facture')
+  })
+
+  it('préremplit le chantier depuis le client', () => {
+    expect(chantierFromClient({ name: 'M. Johan PASCAL', city: 'suze la rousse' })).toBe(
+      'Chantier M. Johan PASCAL à suze la rousse',
+    )
+    expect(chantierFromClient({ name: 'M. BONNEFOUX', city: '' })).toBe('Chantier M. BONNEFOUX')
+    expect(chantierFromClient({ name: '', city: 'Valréas' })).toBe('')
   })
 })

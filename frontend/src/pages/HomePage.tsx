@@ -49,7 +49,7 @@ export default function HomePage() {
                 <StatusChip status={doc.status} docType={doc.doc_type} />
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                {doc.client_name}
+                {doc.object?.trim() || '—'}
               </Typography>
               <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 1 }}>
                 <Typography variant="body2">{formatDate(doc.updated_at)}</Typography>

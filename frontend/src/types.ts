@@ -34,6 +34,15 @@ export type Document = {
   valid_until: string | null
   object: string
   notes: string | null
+  site_address_line1: string
+  site_address_line2: string
+  site_postal_code: string
+  site_city: string
+  deposit_percent: number | string
+  deduction_label: string
+  deduction_ttc_cents: number
+  deposit_amount_cents?: number
+  remaining_due_cents?: number
   total_ht_cents: number
   total_vat_cents: number
   total_ttc_cents: number
@@ -56,6 +65,9 @@ export type Company = {
   vat_number: string
   iban: string
   bic: string
+  website: string
+  legal_form: string
+  payment_terms: string | null
   vat_exempt: number | boolean
   legal_decennale: string | null
   legal_late_penalties: string | null
@@ -63,5 +75,6 @@ export type Company = {
   legal_quote_validity: string | null
   legal_extra: string | null
   has_logo: boolean
+  counters?: { year: number; quote: number; invoice: number }
   vat_rates: { id: number; rate_bp: number; label: string; is_default: number }[]
 }

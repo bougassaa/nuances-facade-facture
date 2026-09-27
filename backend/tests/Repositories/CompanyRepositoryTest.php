@@ -18,6 +18,9 @@ final class CompanyRepositoryTest extends IntegrationTestCase
             'name' => 'Nuances Test',
             'city' => 'Lyon',
             'siret' => '123',
+            'website' => 'www.nuances-facade.fr',
+            'legal_form' => 'EI',
+            'payment_terms' => 'Paiement à réception.',
             'vat_exempt' => true,
             'legal_decennale' => 'Assurance X',
         ]);
@@ -25,11 +28,16 @@ final class CompanyRepositoryTest extends IntegrationTestCase
         $company = $repo->get();
         $this->assertSame('Nuances Test', $company['name']);
         $this->assertSame('Lyon', $company['city']);
+        $this->assertSame('www.nuances-facade.fr', $company['website']);
+        $this->assertSame('EI', $company['legal_form']);
+        $this->assertSame('Paiement à réception.', $company['payment_terms']);
         $this->assertTrue((bool) $company['vat_exempt']);
         $this->assertSame('Assurance X', $company['legal_decennale']);
         $this->assertArrayHasKey('vat_rates', $company);
         $this->assertNotEmpty($company['vat_rates']);
         $this->assertArrayNotHasKey('logo_path', $company);
         $this->assertArrayHasKey('has_logo', $company);
+        $this->assertArrayHasKey('counters', $company);
+        $this->assertArrayHasKey('year', $company['counters']);
     }
 }

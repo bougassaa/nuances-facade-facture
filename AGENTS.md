@@ -5,7 +5,9 @@
 Application de devis et factures pour un artisan façadier (entreprise unique).
 Hôte public : `https://facture.nuances-facade.fr`.
 Elle permet de créer, modifier et envoyer des devis et factures (PDF).
-Elle ne suit pas les règlements : aucun statut « payé », aucun écran ni champ de paiement.
+Elle ne suit pas les règlements : aucun statut « payé ». Les mentions d’acompte
+(pourcentage sur devis, déduction et « reste à payer » sur facture) sont autorisées
+comme libellés d’impression uniquement.
 
 ## Stack
 
@@ -22,7 +24,7 @@ Elle ne suit pas les règlements : aucun statut « payé », aucun écran ni cha
 1. **Lire la doc** avant de modifier le domaine métier ou le déploiement : `docs/domain.md`, `docs/architecture.md`, `docs/deployment-ovh.md`, `docs/testing.md`.
 2. **Mettre à jour la doc** dans le même changement que le code concerné.
 3. **MUI uniquement** pour boutons, champs, Select, Autocomplete, Dialog, Menu, Chip, Card, etc. Pas de CSS custom pour ces composants. Mise en page via `Stack` / `Container` / thème MUI uniquement.
-4. **Pas de notion de paiement** dans le modèle, l’API, l’UI ou les libellés.
+4. **Pas de suivi des règlements** : aucun statut « payé ». Mentions d’acompte / reste à payer autorisées sur le PDF et en saisie documentaire uniquement.
 5. **Totaux en centimes**, calculés côté serveur, arrondi à la ligne.
 6. **Numéro de document** attribué uniquement au passage en statut « envoyé », séquence sans trou, verrou SQL.
 7. Code PHP privé hors web (`facture_app/`). Secrets dans `config.local.php` (gitignored).

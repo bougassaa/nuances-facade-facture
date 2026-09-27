@@ -40,6 +40,7 @@ cp "$ROOT/backend/bootstrap.php" "$APP_OUT/bootstrap.php"
 cp "$ROOT/backend/public/index.php" "$APP_OUT/public/index.php"
 cp "$ROOT/backend/storage/logos/.gitkeep" "$APP_OUT/storage/logos/.gitkeep"
 cp "$ROOT/backend/sql/001_init.sql" "$APP_OUT/001_init.sql"
+cp "$ROOT/backend/sql/002_document_layout.sql" "$APP_OUT/002_document_layout.sql"
 
 # Config prod (exemple) — à copier en config.local.php sur le serveur
 cat > "$APP_OUT/config/config.example.php" <<'PHP'
@@ -93,7 +94,7 @@ chmod +x "$ROOT/scripts/package-ovh.sh" 2>/dev/null || true
 echo "==> OK : $OUT"
 echo "1. Copier facture/ et facture_app/ à la racine FTP (à côté de www/)."
 echo "2. Créer facture_app/config/config.local.php depuis l'exemple."
-echo "3. Importer facture_app/001_init.sql dans MySQL."
+echo "3. Importer facture_app/001_init.sql dans MySQL (ou 002_document_layout.sql si base déjà créée)."
 
 # Restaure les deps de développement local après le package prod
 cd "$ROOT/backend"

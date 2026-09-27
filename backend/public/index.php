@@ -23,8 +23,9 @@ $root = $app['root'];
 
 $auth = new SessionAuth($pdo);
 $clients = new ClientRepository($pdo);
-$company = new CompanyRepository($pdo, $config['paths']['logos']);
-$docs = new DocumentRepository($pdo, new TotalsCalculator(), new DocumentNumberService($pdo));
+$numbers = new DocumentNumberService($pdo);
+$company = new CompanyRepository($pdo, $config['paths']['logos'], $numbers);
+$docs = new DocumentRepository($pdo, new TotalsCalculator(), $numbers);
 $pdf = new PdfService($pdo, $root . '/templates/pdf', $config['paths']['logos']);
 
 header('X-Content-Type-Options: nosniff');

@@ -79,7 +79,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         ]);
         $sent = $this->docs->send($id);
         $this->assertSame('sent', $sent['status']);
-        $this->assertMatchesRegularExpression('/^DEV-\d{4}-\d{3}$/', (string) $sent['number']);
+        $this->assertMatchesRegularExpression('/^DEV-\d{4}-\d{4}$/', (string) $sent['number']);
         $this->assertNotNull($sent['sent_at']);
 
         $this->expectException(RuntimeException::class);
@@ -106,7 +106,11 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $id = $this->docs->create([
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
-            'object' => 'À convertir',
+            'object' => 'Chantier Test',
+            'site_address_line1' => '1 rue du Projet',
+            'site_postal_code' => '26100',
+            'site_city' => 'Romans',
+            'deposit_percent' => 30,
             'lines' => $this->sampleLines(),
         ]);
         $this->docs->send($id);
@@ -121,6 +125,11 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertSame($id, (int) $invoice['source_document_id']);
         $this->assertSame(67000, (int) $invoice['total_ttc_cents']);
         $this->assertCount(2, $invoice['lines']);
+        $this->assertSame('Chantier Test', $invoice['object']);
+        $this->assertSame('1 rue du Projet', $invoice['site_address_line1']);
+        $this->assertSame('26100', $invoice['site_postal_code']);
+        $this->assertSame(0, (int) $invoice['deposit_percent']);
+        $this->assertSame(0, (int) $invoice['deduction_ttc_cents']);
     }
 
     public function testConvertRequiresAcceptedQuote(): void
@@ -167,5 +176,64 @@ final class DocumentRepositoryTest extends IntegrationTestCase
 
         $this->expectException(RuntimeException::class);
         $this->docs->setQuoteStatus($id, DocumentStatus::Accepted);
+    }
+
+    public function testQuoteDepositPersistedAndComputed(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'object' => 'Chantier Acompte',
+            'deposit_percent' => 30,
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertNotNull($doc);
+        $this->assertSame(30.0, (float) $doc['deposit_percent']);
+        // TTC 67000 * 30% = 20100
+        $this->assertSame(20100, (int) $doc['deposit_amount_cents']);
+    }
+
+    public function testInvoiceDeductionAndRemaining(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'invoice',
+            'client_id' => $this->clientId,
+            'deduction_label' => 'Acompte fournitures',
+            'deduction_ttc_cents' => 10000,
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertNotNull($doc);
+        $this->assertSame('Acompte fournitures', $doc['deduction_label']);
+        $this->assertSame(10000, (int) $doc['deduction_ttc_cents']);
+        $this->assertSame(57000, (int) $doc['remaining_due_cents']);
+    }
+
+    public function testDeductionCannotExceedTotal(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->docs->create([
+            'doc_type' => 'invoice',
+            'client_id' => $this->clientId,
+            'deduction_ttc_cents' => 999999,
+            'lines' => $this->sampleLines(),
+        ]);
+    }
+
+    public function testSiteAddressPersisted(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'site_address_line1' => '10 chemin des buisses',
+            'site_postal_code' => '26130',
+            'site_city' => 'Saint Restitut',
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertSame('10 chemin des buisses', $doc['site_address_line1']);
+        $this->assertSame('26130', $doc['site_postal_code']);
+        $this->assertSame('Saint Restitut', $doc['site_city']);
     }
 }

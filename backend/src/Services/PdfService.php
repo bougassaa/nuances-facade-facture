@@ -21,6 +21,33 @@ final class PdfService
     {
         $doc = $this->loadDocument($documentId);
         $company = $this->loadCompany();
+        $html = $this->buildHtml($documentId);
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', false);
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->setChroot([$this->templatesDir, $this->logosDir]);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $this->addFooter($dompdf, $company, (string) ($doc['number'] ?? ''));
+
+        return $dompdf->output();
+    }
+
+    /** Rendu HTML du template (tests / inspection). */
+    public function renderHtml(int $documentId): string
+    {
+        return $this->buildHtml($documentId);
+    }
+
+    private function buildHtml(int $documentId): string
+    {
+        $doc = $this->loadDocument($documentId);
+        $company = $this->loadCompany();
         $client = $this->loadClient((int) $doc['client_id']);
         $lines = $this->loadLines($documentId);
 
@@ -33,23 +60,95 @@ final class PdfService
             }
         }
 
+        $calculator = new TotalsCalculator();
+        $linePayload = [];
+        foreach ($lines as $line) {
+            $linePayload[] = [
+                'quantity' => $line['quantity'],
+                'unit_price_ht_cents' => (int) $line['unit_price_ht_cents'],
+                'vat_rate_bp' => (int) $line['vat_rate_bp'],
+            ];
+        }
+        $computed = $calculator->compute($linePayload, !empty($company['vat_exempt']));
+        $vatByRate = $computed['vat_by_rate'];
+        $depositAmountCents = $calculator->depositAmountCents(
+            (int) $doc['total_ttc_cents'],
+            (float) ($doc['deposit_percent'] ?? 0)
+        );
+        $remainingDueCents = $calculator->remainingDueCents(
+            (int) $doc['total_ttc_cents'],
+            (int) ($doc['deduction_ttc_cents'] ?? 0)
+        );
+
         $document = $doc;
-        // $company, $client, $lines, $logoDataUri already in scope for the template
         ob_start();
         include $this->templatesDir . '/document.php';
-        $html = (string) ob_get_clean();
+        return (string) ob_get_clean();
+    }
 
-        $options = new Options();
-        $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->setChroot([$this->templatesDir, $this->logosDir]);
+    private function addFooter(Dompdf $dompdf, array $company, string $number): void
+    {
+        $canvas = $dompdf->getCanvas();
+        $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+        $legalForm = trim((string) ($company['legal_form'] ?? 'EI')) ?: 'EI';
+        $parts = [$legalForm];
+        if (!empty($company['siret'])) {
+            $parts[] = 'SIRET : ' . $company['siret'];
+        }
+        if (!empty($company['legal_decennale'])) {
+            $assurance = preg_replace('/\s+/', ' ', trim((string) $company['legal_decennale']));
+            $parts[] = 'Assurance : ' . $assurance;
+        }
+        if (!empty($company['iban'])) {
+            $parts[] = 'IBAN : ' . $company['iban'];
+        }
+        $legalLine = $this->truncate(implode(' — ', $parts), 118);
 
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
+        $addressBits = array_filter([
+            $company['address_line1'] ?? '',
+            trim(($company['postal_code'] ?? '') . ' ' . ($company['city'] ?? '')),
+            'France',
+        ]);
+        $contactBits = [];
+        if (!empty($company['phone'])) {
+            $contactBits[] = 'Téléphone : ' . $company['phone'];
+        }
+        if (!empty($company['email'])) {
+            $contactBits[] = 'e-mail : ' . $company['email'];
+        }
+        $headerLine = trim((string) ($company['name'] ?? '')) . ' — '
+            . implode(', ', $addressBits);
+        if ($contactBits !== []) {
+            $headerLine .= ' — ' . implode(' — ', $contactBits);
+        }
+        $headerLine = $this->truncate($headerLine, 118);
 
-        return $dompdf->output();
+        $canvas->page_script(static function (
+            int $pageNumber,
+            int $pageCount,
+            $pdf,
+            $fontMetrics
+        ) use ($font, $headerLine, $legalLine, $number): void {
+            $w = $pdf->get_width();
+            $h = $pdf->get_height();
+            $size = 7.0;
+            $y = $h - 48;
+
+            $pdf->text(42, $y, 'Page ' . $pageNumber . ' / ' . $pageCount, $font, $size);
+            if ($number !== '' && $pageNumber > 1) {
+                $pdf->text($w - 120, 28, $number, $font, $size);
+            }
+            $pdf->text(42, $y + 12, $headerLine, $font, $size);
+            $pdf->text(42, $y + 22, $legalLine, $font, $size);
+        });
+    }
+
+    private function truncate(string $text, int $max): string
+    {
+        if (mb_strlen($text) <= $max) {
+            return $text;
+        }
+        return mb_substr($text, 0, $max - 1) . '…';
     }
 
     private function loadDocument(int $id): array

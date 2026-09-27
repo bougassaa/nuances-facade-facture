@@ -17,6 +17,7 @@ import { api, downloadPdf } from '../api/client'
 import StatusChip from '../components/StatusChip'
 import {
   centsToEurosInput,
+  chantierFromClient,
   eurosToCents,
   formatMoney,
   typeLabel,
@@ -81,6 +82,15 @@ function toPayloadLines(lines: LineForm[]) {
     }))
 }
 
+function siteFromClient(c: Client) {
+  return {
+    site_address_line1: c.address_line1 ?? '',
+    site_address_line2: c.address_line2 ?? '',
+    site_postal_code: c.postal_code ?? '',
+    site_city: c.city ?? '',
+  }
+}
+
 export default function DocumentEditPage() {
   const { id } = useParams()
   const [search] = useSearchParams()
@@ -97,6 +107,13 @@ export default function DocumentEditPage() {
   const [object, setObject] = useState('')
   const [notes, setNotes] = useState('')
   const [validUntil, setValidUntil] = useState('')
+  const [siteAddress1, setSiteAddress1] = useState('')
+  const [siteAddress2, setSiteAddress2] = useState('')
+  const [sitePostal, setSitePostal] = useState('')
+  const [siteCity, setSiteCity] = useState('')
+  const [depositPercent, setDepositPercent] = useState('0')
+  const [deductionLabel, setDeductionLabel] = useState('')
+  const [deductionAmount, setDeductionAmount] = useState('0,00')
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
   const [totals, setTotals] = useState({ ht: 0, vat: 0, ttc: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -120,6 +137,13 @@ export default function DocumentEditPage() {
         setObject(doc.object)
         setNotes(doc.notes ?? '')
         setValidUntil(doc.valid_until ?? '')
+        setSiteAddress1(doc.site_address_line1 ?? '')
+        setSiteAddress2(doc.site_address_line2 ?? '')
+        setSitePostal(doc.site_postal_code ?? '')
+        setSiteCity(doc.site_city ?? '')
+        setDepositPercent(String(doc.deposit_percent ?? 0).replace('.', ','))
+        setDeductionLabel(doc.deduction_label ?? '')
+        setDeductionAmount(centsToEurosInput(doc.deduction_ttc_cents ?? 0))
         setLines(linesFromDoc(doc.lines))
         setTotals({
           ht: doc.total_ht_cents,
@@ -144,6 +168,30 @@ export default function DocumentEditPage() {
     return { ht, vat, ttc: ht + vat }
   }, [lines])
 
+  const depositCents = useMemo(() => {
+    const pct = Number.parseFloat(depositPercent.replace(',', '.')) || 0
+    return Math.round((previewTotals.ttc * pct) / 100)
+  }, [depositPercent, previewTotals.ttc])
+
+  const deductionCents = useMemo(() => eurosToCents(deductionAmount), [deductionAmount])
+  const remainingCents = Math.max(0, (editable ? previewTotals.ttc : totals.ttc) - deductionCents)
+
+  function applyClientSite(c: Client | null) {
+    if (!c) return
+    const site = siteFromClient(c)
+    setSiteAddress1(site.site_address_line1)
+    setSiteAddress2(site.site_address_line2)
+    setSitePostal(site.site_postal_code)
+    setSiteCity(site.site_city)
+  }
+
+  function applyClientSelection(c: Client | null) {
+    setClient(c)
+    if (!editable || !c) return
+    setObject(chantierFromClient(c))
+    applyClientSite(c)
+  }
+
   async function save(e?: FormEvent) {
     e?.preventDefault()
     if (!client) {
@@ -158,6 +206,13 @@ export default function DocumentEditPage() {
       object,
       notes,
       valid_until: validUntil || null,
+      site_address_line1: siteAddress1,
+      site_address_line2: siteAddress2,
+      site_postal_code: sitePostal,
+      site_city: siteCity,
+      deposit_percent: docType === 'quote' ? Number.parseFloat(depositPercent.replace(',', '.')) || 0 : 0,
+      deduction_label: docType === 'invoice' ? deductionLabel : '',
+      deduction_ttc_cents: docType === 'invoice' ? eurosToCents(deductionAmount) : 0,
       lines: toPayloadLines(lines),
     }
     try {
@@ -199,12 +254,16 @@ export default function DocumentEditPage() {
     try {
       const sent = await api<Document>(`/documents/${docId}/send`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: '{}',
       })
       setStatus(sent.status)
       setNumber(sent.number)
+      setTotals({
+        ht: sent.total_ht_cents,
+        vat: sent.total_vat_cents,
+        ttc: sent.total_ttc_cents,
+      })
       await downloadPdf(sent.id, sent.number ?? undefined)
-      navigate(`/documents/${sent.id}`, { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {
@@ -212,7 +271,7 @@ export default function DocumentEditPage() {
     }
   }
 
-  async function onStatus(next: string) {
+  async function onStatus(next: 'accepted' | 'rejected') {
     setBusy(true)
     try {
       const updated = await api<Document>(`/documents/${id}/status`, {
@@ -232,11 +291,12 @@ export default function DocumentEditPage() {
     try {
       const invoice = await api<Document>(`/documents/${id}/convert`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: '{}',
       })
       navigate(`/documents/${invoice.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
+    } finally {
       setBusy(false)
     }
   }
@@ -257,17 +317,51 @@ export default function DocumentEditPage() {
         options={clients}
         getOptionLabel={(o) => o.name}
         value={client}
-        onChange={(_, v) => setClient(v)}
+        onChange={(_, v) => applyClientSelection(v)}
         disabled={!editable}
         renderInput={(params) => <TextField {...params} label="Client" required />}
       />
 
       <TextField
-        label="Objet"
+        label="Chantier"
         value={object}
         onChange={(e) => setObject(e.target.value)}
         disabled={!editable}
+        helperText="Prérempli au choix du client, modifiable"
       />
+
+      <Typography variant="subtitle1">Adresse du projet</Typography>
+      <TextField
+        label="Adresse"
+        value={siteAddress1}
+        onChange={(e) => setSiteAddress1(e.target.value)}
+        disabled={!editable}
+      />
+      <TextField
+        label="Complément"
+        value={siteAddress2}
+        onChange={(e) => setSiteAddress2(e.target.value)}
+        disabled={!editable}
+      />
+      <Stack direction="row" spacing={1}>
+        <TextField
+          label="Code postal"
+          value={sitePostal}
+          onChange={(e) => setSitePostal(e.target.value)}
+          disabled={!editable}
+        />
+        <TextField
+          label="Ville"
+          value={siteCity}
+          onChange={(e) => setSiteCity(e.target.value)}
+          disabled={!editable}
+        />
+      </Stack>
+      {editable && client && (
+        <Button variant="text" onClick={() => applyClientSite(client)}>
+          Reprendre l’adresse du client
+        </Button>
+      )}
 
       {docType === 'quote' && (
         <TextField
@@ -366,6 +460,39 @@ export default function DocumentEditPage() {
         </Button>
       )}
 
+      {docType === 'quote' && (
+        <TextField
+          label="Acompte à la signature (%)"
+          value={depositPercent}
+          onChange={(e) => setDepositPercent(e.target.value)}
+          disabled={!editable}
+          helperText={
+            Number.parseFloat(depositPercent.replace(',', '.')) > 0
+              ? `Soit ${formatMoney(depositCents)} sur le total TTC`
+              : '0 = pas de mention d’acompte sur le PDF'
+          }
+        />
+      )}
+
+      {docType === 'invoice' && (
+        <Stack spacing={1.5}>
+          <TextField
+            label="Libellé de déduction"
+            value={deductionLabel}
+            onChange={(e) => setDeductionLabel(e.target.value)}
+            disabled={!editable}
+            placeholder="Acompte fournitures"
+          />
+          <TextField
+            label="Montant déduit TTC (€)"
+            value={deductionAmount}
+            onChange={(e) => setDeductionAmount(e.target.value)}
+            disabled={!editable}
+            helperText="0 = pas de déduction sur le PDF"
+          />
+        </Stack>
+      )}
+
       <TextField
         label="Notes"
         multiline
@@ -380,6 +507,14 @@ export default function DocumentEditPage() {
         <Typography>Total HT : {formatMoney(displayTotals.ht)}</Typography>
         <Typography>TVA : {formatMoney(displayTotals.vat)}</Typography>
         <Typography sx={{ fontWeight: 700 }}>Total TTC : {formatMoney(displayTotals.ttc)}</Typography>
+        {docType === 'invoice' && deductionCents > 0 && (
+          <>
+            <Typography>
+              {deductionLabel || 'Acompte'} : − {formatMoney(deductionCents)}
+            </Typography>
+            <Typography sx={{ fontWeight: 700 }}>Reste à payer : {formatMoney(remainingCents)}</Typography>
+          </>
+        )}
       </Stack>
 
       {editable && (
