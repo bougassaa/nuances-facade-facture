@@ -17,7 +17,7 @@ export type DocumentLine = {
   quantity: number | string
   unit: string
   unit_price_ht_cents: number
-  vat_rate_bp: number
+  vat_rate_bp?: number
   line_ht_cents?: number
   line_vat_cents?: number
 }
@@ -38,10 +38,10 @@ export type Document = {
   site_address_line2: string
   site_postal_code: string
   site_city: string
-  deposit_percent: number | string
+  vat_rate_bp: number
+  deposit_ttc_cents: number
   deduction_label: string
   deduction_ttc_cents: number
-  deposit_amount_cents?: number
   remaining_due_cents?: number
   total_ht_cents: number
   total_vat_cents: number

@@ -25,7 +25,7 @@ comme libellés d’impression uniquement.
 2. **Mettre à jour la doc** dans le même changement que le code concerné.
 3. **MUI uniquement** pour boutons, champs, Select, Autocomplete, Dialog, Menu, Chip, Card, etc. Pas de CSS custom pour ces composants. Mise en page via `Stack` / `Container` / thème MUI uniquement.
 4. **Pas de suivi des règlements** : aucun statut « payé ». Mentions d’acompte / reste à payer autorisées sur le PDF et en saisie documentaire uniquement.
-5. **Totaux en centimes**, calculés côté serveur, arrondi à la ligne.
+5. **Totaux en centimes**, calculés côté serveur : arrondi HT à la ligne, TVA une fois sur le total HT.
 6. **Numéro de document** attribué uniquement au passage en statut « envoyé », séquence sans trou, verrou SQL.
 7. Code PHP privé hors web (`facture_app/`). Secrets dans `config.local.php` (gitignored).
 8. Interface en français. Montants `1 234,56 €`. Dates `jj/mm/aaaa`.

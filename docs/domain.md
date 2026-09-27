@@ -28,14 +28,15 @@ Types : `quote` (devis), `invoice` (facture).
 
 **Aucun statut lié au règlement** (pas de « payé »). Les mentions d’acompte et le « reste à payer » sont purement documentaires.
 
-### Champs chantier et acompte
+### Champs chantier, TVA et acompte
 
 - `object` : titre chantier (ex. « Chantier M. Johan PASCAL à suze la rousse »). Prérempli à la sélection du client (`Chantier {nom} à {ville}`), modifiable ensuite.
 - Adresse du projet : `site_address_line1/2`, `site_postal_code`, `site_city` (distincte de l’adresse client).
-- Devis : `deposit_percent` (0–100). Montant affiché = `round(total_ttc × percent / 100)`. 0 = pas de mention.
+- `vat_rate_bp` : un seul taux de TVA pour le document (20 %, 10 %, 5,5 %, 0 %). Franchise en base (`vat_exempt`) force 0 %.
+- Devis : `deposit_ttc_cents` (montant TTC en centimes, ≤ total TTC). 0 = pas de mention.
 - Facture : `deduction_label` + `deduction_ttc_cents` (≤ total TTC). Affiche déduction et « Reste à payer ». 0 = masqué.
 
-La conversion devis → facture copie les lignes et l’adresse de chantier, **pas** l’acompte.
+La conversion devis → facture copie les lignes, le chantier et le taux de TVA, **pas** l’acompte.
 
 ### Cycle de vie
 
@@ -49,7 +50,7 @@ Les documents `sent` (et suivants) ne sont plus modifiables (lignes figées). Un
 
 ## Lignes
 
-Libellé, quantité, unité (ex. m², u, forfait), prix unitaire HT (centimes), taux de TVA.
+Libellé, quantité, unité (ex. m², u, forfait), prix unitaire HT (centimes). Le taux de TVA est porté par le document.
 
 ## Compteurs
 
@@ -59,7 +60,7 @@ Au démarrage, les réglages entreprise peuvent initialiser le dernier numéro d
 
 ## PDF
 
-Mise en page calquée sur les documents artisan : en-tête entreprise / client, chantier, tableau numéroté, TVA par taux, acompte ou reste à payer, pied de page (forme juridique, SIRET, assurance, IBAN, pagination). Devis : page signature « Bon pour travaux ».
+Mise en page calquée sur les documents artisan : en-tête entreprise / client, chantier, tableau numéroté (sans TVA par ligne), TVA unique au total, acompte ou reste à payer, pied de page (forme juridique, SIRET, assurance, IBAN, pagination). Devis : page signature « Bon pour travaux ».
 
 ## Libellés UI (français)
 

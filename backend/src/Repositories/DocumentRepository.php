@@ -14,6 +14,9 @@ use InvalidArgumentException;
 
 final class DocumentRepository
 {
+    /** @var list<int> */
+    private const ALLOWED_VAT_RATES = [0, 550, 1000, 2000];
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly TotalsCalculator $totals,
@@ -49,10 +52,6 @@ final class DocumentRepository
             return null;
         }
         $doc['lines'] = $this->lines($id);
-        $doc['deposit_amount_cents'] = $this->totals->depositAmountCents(
-            (int) $doc['total_ttc_cents'],
-            (float) $doc['deposit_percent']
-        );
         $doc['remaining_due_cents'] = $this->totals->remainingDueCents(
             (int) $doc['total_ttc_cents'],
             (int) $doc['deduction_ttc_cents']
@@ -83,11 +82,11 @@ final class DocumentRepository
                 'INSERT INTO documents (
                     doc_type, status, client_id, object, notes, valid_until,
                     site_address_line1, site_address_line2, site_postal_code, site_city,
-                    deposit_percent, deduction_label, deduction_ttc_cents
+                    vat_rate_bp, deposit_ttc_cents, deduction_label, deduction_ttc_cents
                  ) VALUES (
                     :type, :status, :client, :object, :notes, :valid,
                     :sa1, :sa2, :scp, :scity,
-                    :deposit, :ded_label, :ded_cents
+                    :vat, :deposit, :ded_label, :ded_cents
                  )'
             );
             $stmt->execute([
@@ -101,12 +100,16 @@ final class DocumentRepository
                 'sa2' => $fields['site_address_line2'],
                 'scp' => $fields['site_postal_code'],
                 'scity' => $fields['site_city'],
-                'deposit' => $fields['deposit_percent'],
+                'vat' => $fields['vat_rate_bp'],
+                'deposit' => $fields['deposit_ttc_cents'],
                 'ded_label' => $fields['deduction_label'],
                 'ded_cents' => $fields['deduction_ttc_cents'],
             ]);
             $id = (int) $this->pdo->lastInsertId();
-            $this->replaceLines($id, $data['lines'] ?? [], $fields['deduction_ttc_cents']);
+            $limitCents = $type === DocumentType::Quote
+                ? $fields['deposit_ttc_cents']
+                : $fields['deduction_ttc_cents'];
+            $this->replaceLines($id, $data['lines'] ?? [], $fields['vat_rate_bp'], $limitCents, $type);
             $this->pdo->commit();
             return $id;
         } catch (\Throwable $e) {
@@ -135,8 +138,8 @@ final class DocumentRepository
                  valid_until = :valid,
                  site_address_line1 = :sa1, site_address_line2 = :sa2,
                  site_postal_code = :scp, site_city = :scity,
-                 deposit_percent = :deposit, deduction_label = :ded_label,
-                 deduction_ttc_cents = :ded_cents
+                 vat_rate_bp = :vat, deposit_ttc_cents = :deposit,
+                 deduction_label = :ded_label, deduction_ttc_cents = :ded_cents
                  WHERE id = :id'
             );
             $stmt->execute([
@@ -148,15 +151,19 @@ final class DocumentRepository
                 'sa2' => $fields['site_address_line2'],
                 'scp' => $fields['site_postal_code'],
                 'scity' => $fields['site_city'],
-                'deposit' => $fields['deposit_percent'],
+                'vat' => $fields['vat_rate_bp'],
+                'deposit' => $fields['deposit_ttc_cents'],
                 'ded_label' => $fields['deduction_label'],
                 'ded_cents' => $fields['deduction_ttc_cents'],
                 'id' => $id,
             ]);
+            $limitCents = $type === DocumentType::Quote
+                ? $fields['deposit_ttc_cents']
+                : $fields['deduction_ttc_cents'];
             if (array_key_exists('lines', $data)) {
-                $this->replaceLines($id, $data['lines'] ?? [], $fields['deduction_ttc_cents']);
+                $this->replaceLines($id, $data['lines'] ?? [], $fields['vat_rate_bp'], $limitCents, $type);
             } else {
-                $this->assertDeductionWithinTotal($id, $fields['deduction_ttc_cents']);
+                $this->recomputeTotals($id, $fields['vat_rate_bp'], $limitCents, $type);
             }
             $this->pdo->commit();
         } catch (\Throwable $e) {
@@ -248,7 +255,7 @@ final class DocumentRepository
         return $found;
     }
 
-    /** Convertit un devis accepté en facture brouillon (copie chantier, pas l’acompte). */
+    /** Convertit un devis accepté en facture brouillon (copie chantier + TVA, pas l’acompte). */
     public function convertToInvoice(int $quoteId): int
     {
         $this->pdo->beginTransaction();
@@ -269,10 +276,12 @@ final class DocumentRepository
             $ins = $this->pdo->prepare(
                 'INSERT INTO documents (
                     doc_type, status, client_id, source_document_id, object, notes,
-                    site_address_line1, site_address_line2, site_postal_code, site_city
+                    site_address_line1, site_address_line2, site_postal_code, site_city,
+                    vat_rate_bp
                  ) VALUES (
                     :type, :status, :client, :source, :object, :notes,
-                    :sa1, :sa2, :scp, :scity
+                    :sa1, :sa2, :scp, :scity,
+                    :vat
                  )'
             );
             $ins->execute([
@@ -286,6 +295,7 @@ final class DocumentRepository
                 'sa2' => $doc['site_address_line2'] ?? '',
                 'scp' => $doc['site_postal_code'] ?? '',
                 'scity' => $doc['site_city'] ?? '',
+                'vat' => (int) ($doc['vat_rate_bp'] ?? 2000),
             ]);
             $invoiceId = (int) $this->pdo->lastInsertId();
 
@@ -297,10 +307,15 @@ final class DocumentRepository
                     'quantity' => $line['quantity'],
                     'unit' => $line['unit'],
                     'unit_price_ht_cents' => (int) $line['unit_price_ht_cents'],
-                    'vat_rate_bp' => (int) $line['vat_rate_bp'],
                 ];
             }
-            $this->replaceLines($invoiceId, $payload, 0);
+            $this->replaceLines(
+                $invoiceId,
+                $payload,
+                (int) ($doc['vat_rate_bp'] ?? 2000),
+                0,
+                DocumentType::Invoice
+            );
             $this->pdo->commit();
             return $invoiceId;
         } catch (\Throwable $e) {
@@ -339,16 +354,25 @@ final class DocumentRepository
      *   site_address_line2: string,
      *   site_postal_code: string,
      *   site_city: string,
-     *   deposit_percent: float,
+     *   vat_rate_bp: int,
+     *   deposit_ttc_cents: int,
      *   deduction_label: string,
      *   deduction_ttc_cents: int
      * }
      */
     private function documentFields(DocumentType $type, array $data, ?array $existing = null): array
     {
-        $deposit = (float) ($data['deposit_percent'] ?? $existing['deposit_percent'] ?? 0);
-        if ($deposit < 0 || $deposit > 100) {
-            throw new InvalidArgumentException('Le pourcentage d’acompte doit être entre 0 et 100');
+        $vatExempt = (bool) $this->pdo->query('SELECT vat_exempt FROM company WHERE id = 1')->fetchColumn();
+        $vatRate = (int) ($data['vat_rate_bp'] ?? $existing['vat_rate_bp'] ?? 2000);
+        if ($vatExempt) {
+            $vatRate = 0;
+        } elseif (!in_array($vatRate, self::ALLOWED_VAT_RATES, true)) {
+            throw new InvalidArgumentException('Taux de TVA invalide');
+        }
+
+        $deposit = (int) ($data['deposit_ttc_cents'] ?? $existing['deposit_ttc_cents'] ?? 0);
+        if ($deposit < 0) {
+            throw new InvalidArgumentException('L’acompte ne peut pas être négatif');
         }
 
         $deduction = (int) ($data['deduction_ttc_cents'] ?? $existing['deduction_ttc_cents'] ?? 0);
@@ -360,7 +384,7 @@ final class DocumentRepository
             $deduction = 0;
             $deductionLabel = '';
         } else {
-            $deposit = 0.0;
+            $deposit = 0;
             $deductionLabel = trim((string) ($data['deduction_label'] ?? $existing['deduction_label'] ?? ''));
             if ($deduction === 0) {
                 $deductionLabel = '';
@@ -377,29 +401,52 @@ final class DocumentRepository
             'site_address_line2' => (string) ($data['site_address_line2'] ?? $existing['site_address_line2'] ?? ''),
             'site_postal_code' => (string) ($data['site_postal_code'] ?? $existing['site_postal_code'] ?? ''),
             'site_city' => (string) ($data['site_city'] ?? $existing['site_city'] ?? ''),
-            'deposit_percent' => $deposit,
+            'vat_rate_bp' => $vatRate,
+            'deposit_ttc_cents' => $deposit,
             'deduction_label' => $deductionLabel,
             'deduction_ttc_cents' => $deduction,
         ];
     }
 
-    private function assertDeductionWithinTotal(int $documentId, int $deductionTtcCents): void
+    private function assertWithinTotal(int $amountCents, int $totalTtcCents, DocumentType $type): void
     {
-        $stmt = $this->pdo->prepare('SELECT total_ttc_cents FROM documents WHERE id = :id');
-        $stmt->execute(['id' => $documentId]);
-        $ttc = (int) $stmt->fetchColumn();
-        if ($deductionTtcCents > $ttc) {
-            throw new InvalidArgumentException('La déduction ne peut pas dépasser le total TTC');
+        if ($amountCents <= $totalTtcCents) {
+            return;
         }
+        $label = $type === DocumentType::Quote ? 'L’acompte' : 'La déduction';
+        throw new InvalidArgumentException($label . ' ne peut pas dépasser le total TTC');
+    }
+
+    /** Recalcule les totaux à partir des lignes existantes (changement de TVA sans nouvelles lignes). */
+    private function recomputeTotals(int $documentId, int $vatRateBp, int $limitCents, DocumentType $type): void
+    {
+        $lines = $this->lines($documentId);
+        $payload = [];
+        foreach ($lines as $line) {
+            $payload[] = [
+                'label' => $line['label'],
+                'quantity' => $line['quantity'],
+                'unit' => $line['unit'],
+                'unit_price_ht_cents' => (int) $line['unit_price_ht_cents'],
+            ];
+        }
+        $this->replaceLines($documentId, $payload, $vatRateBp, $limitCents, $type);
     }
 
     /** @param list<array> $lines */
-    private function replaceLines(int $documentId, array $lines, int $deductionTtcCents = 0): void
-    {
+    private function replaceLines(
+        int $documentId,
+        array $lines,
+        int $vatRateBp,
+        int $limitCents = 0,
+        DocumentType $type = DocumentType::Quote,
+    ): void {
         $del = $this->pdo->prepare('DELETE FROM document_lines WHERE document_id = :id');
         $del->execute(['id' => $documentId]);
 
         $vatExempt = (bool) $this->pdo->query('SELECT vat_exempt FROM company WHERE id = 1')->fetchColumn();
+        $effectiveRate = $vatExempt ? 0 : $vatRateBp;
+
         $normalized = [];
         foreach ($lines as $line) {
             $label = trim((string) ($line['label'] ?? ''));
@@ -409,16 +456,13 @@ final class DocumentRepository
             $normalized[] = [
                 'quantity' => (float) ($line['quantity'] ?? 1),
                 'unit_price_ht_cents' => (int) ($line['unit_price_ht_cents'] ?? 0),
-                'vat_rate_bp' => $vatExempt ? 0 : (int) ($line['vat_rate_bp'] ?? 2000),
                 'label' => $label,
                 'unit' => trim((string) ($line['unit'] ?? 'u')) ?: 'u',
             ];
         }
 
-        $computed = $this->totals->compute($normalized, $vatExempt);
-        if ($deductionTtcCents > $computed['total_ttc_cents']) {
-            throw new InvalidArgumentException('La déduction ne peut pas dépasser le total TTC');
-        }
+        $computed = $this->totals->compute($normalized, $effectiveRate, $vatExempt);
+        $this->assertWithinTotal($limitCents, $computed['total_ttc_cents'], $type);
 
         $ins = $this->pdo->prepare(
             'INSERT INTO document_lines
@@ -433,20 +477,22 @@ final class DocumentRepository
                 'qty' => $line['quantity'],
                 'unit' => $line['unit'],
                 'price' => $line['unit_price_ht_cents'],
-                'vat' => $line['vat_rate_bp'],
+                'vat' => $effectiveRate,
                 'ht' => $computed['lines'][$i]['line_ht_cents'],
-                'lvat' => $computed['lines'][$i]['line_vat_cents'],
+                'lvat' => 0,
             ]);
         }
 
         $upd = $this->pdo->prepare(
-            'UPDATE documents SET total_ht_cents = :ht, total_vat_cents = :vat, total_ttc_cents = :ttc
+            'UPDATE documents SET total_ht_cents = :ht, total_vat_cents = :vat, total_ttc_cents = :ttc,
+             vat_rate_bp = :rate
              WHERE id = :id'
         );
         $upd->execute([
             'ht' => $computed['total_ht_cents'],
             'vat' => $computed['total_vat_cents'],
             'ttc' => $computed['total_ttc_cents'],
+            'rate' => $effectiveRate,
             'id' => $documentId,
         ]);
     }

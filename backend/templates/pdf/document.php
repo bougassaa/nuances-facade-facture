@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Variables: $document, $company, $client, $lines, $logoDataUri,
- *            $vatByRate, $depositAmountCents, $remainingDueCents
+ *            $depositAmountCents, $remainingDueCents
  */
 
 if (!function_exists('nf_money')) {
@@ -58,7 +58,8 @@ $isQuote = ($document['doc_type'] ?? '') === 'quote';
 $number = $document['number'] ?? 'Brouillon';
 $issueDate = nf_date($document['issue_date'] ?? $document['sent_at'] ?? null)
     ?: nf_date(substr((string) ($document['created_at'] ?? ''), 0, 10));
-$depositPercent = (float) ($document['deposit_percent'] ?? 0);
+$depositAmountCents = (int) ($depositAmountCents ?? $document['deposit_ttc_cents'] ?? 0);
+$vatRateBp = (int) ($document['vat_rate_bp'] ?? 2000);
 $deductionCents = (int) ($document['deduction_ttc_cents'] ?? 0);
 $deductionLabel = trim((string) ($document['deduction_label'] ?? ''));
 $hasSite = trim((string) ($document['site_address_line1'] ?? '')) !== ''
@@ -229,9 +230,8 @@ if (!empty($client['phone'])) {
       <th style="width:6%;">N°</th>
       <th>Désignation</th>
       <th class="center" style="width:12%;">Qté</th>
-      <th class="num" style="width:14%;">PU HT</th>
-      <th class="num" style="width:10%;">TVA</th>
-      <th class="num" style="width:14%;">Total HT</th>
+      <th class="num" style="width:16%;">PU HT</th>
+      <th class="num" style="width:16%;">Total HT</th>
     </tr>
   </thead>
   <tbody>
@@ -241,7 +241,6 @@ if (!empty($client['phone'])) {
         <td><?= nl2br(htmlspecialchars((string) $line['label'], ENT_QUOTES)) ?></td>
         <td class="center"><?= htmlspecialchars(nf_qty_unit($line['quantity'], (string) $line['unit']), ENT_QUOTES) ?></td>
         <td class="num"><?= nf_money((int) $line['unit_price_ht_cents']) ?></td>
-        <td class="num"><?= nf_vat_label((int) $line['vat_rate_bp']) ?></td>
         <td class="num"><?= nf_money((int) $line['line_ht_cents']) ?></td>
       </tr>
     <?php endforeach; ?>
@@ -251,10 +250,9 @@ if (!empty($client['phone'])) {
 <table class="totals-wrap">
   <tr>
     <td width="50%">
-      <?php if ($isQuote && $depositPercent > 0): ?>
+      <?php if ($isQuote && $depositAmountCents > 0): ?>
         <div class="deposit">
-          Acompte à la signature de <?= rtrim(rtrim(number_format($depositPercent, 2, ',', ' '), '0'), ',') ?> %,
-          soit <?= nf_money((int) $depositAmountCents) ?>.
+          Acompte à la signature de <?= nf_money((int) $depositAmountCents) ?>.
         </div>
       <?php endif; ?>
       <?php if (!$isQuote && $paymentTerms !== ''): ?>
@@ -272,23 +270,15 @@ if (!empty($client['phone'])) {
           <td>Total HT</td>
           <td class="num"><?= nf_money((int) $document['total_ht_cents']) ?></td>
         </tr>
-        <?php
-          $vatRowsShown = 0;
-          foreach ($vatByRate as $vatRow):
-              if ((int) $vatRow['vat_cents'] <= 0) {
-                  continue;
-              }
-              $vatRowsShown++;
-        ?>
+        <?php if ((int) ($document['total_vat_cents'] ?? 0) > 0): ?>
           <tr>
-            <td>TVA à <?= nf_vat_label((int) $vatRow['vat_rate_bp']) ?></td>
-            <td class="num"><?= nf_money((int) $vatRow['vat_cents']) ?></td>
-          </tr>
-        <?php endforeach; ?>
-        <?php if ($vatRowsShown === 0 && (int) ($document['total_vat_cents'] ?? 0) > 0): ?>
-          <tr>
-            <td>TVA</td>
+            <td>TVA à <?= nf_vat_label($vatRateBp) ?></td>
             <td class="num"><?= nf_money((int) $document['total_vat_cents']) ?></td>
+          </tr>
+        <?php elseif (empty($company['vat_exempt'])): ?>
+          <tr>
+            <td>TVA à <?= nf_vat_label($vatRateBp) ?></td>
+            <td class="num"><?= nf_money(0) ?></td>
           </tr>
         <?php endif; ?>
         <tr class="grand">

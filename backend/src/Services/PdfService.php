@@ -61,20 +61,7 @@ final class PdfService
         }
 
         $calculator = new TotalsCalculator();
-        $linePayload = [];
-        foreach ($lines as $line) {
-            $linePayload[] = [
-                'quantity' => $line['quantity'],
-                'unit_price_ht_cents' => (int) $line['unit_price_ht_cents'],
-                'vat_rate_bp' => (int) $line['vat_rate_bp'],
-            ];
-        }
-        $computed = $calculator->compute($linePayload, !empty($company['vat_exempt']));
-        $vatByRate = $computed['vat_by_rate'];
-        $depositAmountCents = $calculator->depositAmountCents(
-            (int) $doc['total_ttc_cents'],
-            (float) ($doc['deposit_percent'] ?? 0)
-        );
+        $depositAmountCents = (int) ($doc['deposit_ttc_cents'] ?? 0);
         $remainingDueCents = $calculator->remainingDueCents(
             (int) $doc['total_ttc_cents'],
             (int) ($doc['deduction_ttc_cents'] ?? 0)

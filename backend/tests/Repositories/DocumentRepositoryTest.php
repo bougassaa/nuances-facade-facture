@@ -39,14 +39,12 @@ final class DocumentRepositoryTest extends IntegrationTestCase
                 'quantity' => 10,
                 'unit' => 'm2',
                 'unit_price_ht_cents' => 5000,
-                'vat_rate_bp' => 1000,
             ],
             [
                 'label' => 'Forfait',
                 'quantity' => 1,
                 'unit' => 'u',
                 'unit_price_ht_cents' => 10000,
-                'vat_rate_bp' => 2000,
             ],
         ];
     }
@@ -57,17 +55,20 @@ final class DocumentRepositoryTest extends IntegrationTestCase
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
             'object' => 'Travaux',
+            'vat_rate_bp' => 1000,
             'lines' => $this->sampleLines(),
         ]);
         $doc = $this->docs->find($id);
         $this->assertNotNull($doc);
         $this->assertSame('draft', $doc['status']);
         $this->assertNull($doc['number']);
-        // 10*5000=50000 + 10000 = 60000 HT ; TVA 5000+2000=7000
+        // 10*5000=50000 + 10000 = 60000 HT ; TVA 10 % = 6000
         $this->assertSame(60000, (int) $doc['total_ht_cents']);
-        $this->assertSame(7000, (int) $doc['total_vat_cents']);
-        $this->assertSame(67000, (int) $doc['total_ttc_cents']);
+        $this->assertSame(6000, (int) $doc['total_vat_cents']);
+        $this->assertSame(66000, (int) $doc['total_ttc_cents']);
+        $this->assertSame(1000, (int) $doc['vat_rate_bp']);
         $this->assertCount(2, $doc['lines']);
+        $this->assertSame(0, (int) $doc['lines'][0]['line_vat_cents']);
     }
 
     public function testSendAssignsNumberAndLocks(): void
@@ -110,7 +111,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
             'site_address_line1' => '1 rue du Projet',
             'site_postal_code' => '26100',
             'site_city' => 'Romans',
-            'deposit_percent' => 30,
+            'deposit_ttc_cents' => 20000,
             'lines' => $this->sampleLines(),
         ]);
         $this->docs->send($id);
@@ -123,12 +124,13 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertSame('draft', $invoice['status']);
         $this->assertNull($invoice['number']);
         $this->assertSame($id, (int) $invoice['source_document_id']);
-        $this->assertSame(67000, (int) $invoice['total_ttc_cents']);
+        $this->assertSame(72000, (int) $invoice['total_ttc_cents']);
         $this->assertCount(2, $invoice['lines']);
         $this->assertSame('Chantier Test', $invoice['object']);
         $this->assertSame('1 rue du Projet', $invoice['site_address_line1']);
         $this->assertSame('26100', $invoice['site_postal_code']);
-        $this->assertSame(0, (int) $invoice['deposit_percent']);
+        $this->assertSame(2000, (int) $invoice['vat_rate_bp']);
+        $this->assertSame(0, (int) $invoice['deposit_ttc_cents']);
         $this->assertSame(0, (int) $invoice['deduction_ttc_cents']);
     }
 
@@ -178,20 +180,19 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->docs->setQuoteStatus($id, DocumentStatus::Accepted);
     }
 
-    public function testQuoteDepositPersistedAndComputed(): void
+    public function testQuoteDepositPersisted(): void
     {
         $id = $this->docs->create([
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
             'object' => 'Chantier Acompte',
-            'deposit_percent' => 30,
+            'deposit_ttc_cents' => 20000,
             'lines' => $this->sampleLines(),
         ]);
         $doc = $this->docs->find($id);
         $this->assertNotNull($doc);
-        $this->assertSame(30.0, (float) $doc['deposit_percent']);
-        // TTC 67000 * 30% = 20100
-        $this->assertSame(20100, (int) $doc['deposit_amount_cents']);
+        $this->assertSame(20000, (int) $doc['deposit_ttc_cents']);
+        $this->assertSame(72000, (int) $doc['total_ttc_cents']);
     }
 
     public function testInvoiceDeductionAndRemaining(): void
@@ -207,7 +208,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertNotNull($doc);
         $this->assertSame('Acompte fournitures', $doc['deduction_label']);
         $this->assertSame(10000, (int) $doc['deduction_ttc_cents']);
-        $this->assertSame(57000, (int) $doc['remaining_due_cents']);
+        $this->assertSame(62000, (int) $doc['remaining_due_cents']);
     }
 
     public function testDeductionCannotExceedTotal(): void
@@ -217,6 +218,17 @@ final class DocumentRepositoryTest extends IntegrationTestCase
             'doc_type' => 'invoice',
             'client_id' => $this->clientId,
             'deduction_ttc_cents' => 999999,
+            'lines' => $this->sampleLines(),
+        ]);
+    }
+
+    public function testDepositCannotExceedTotal(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_ttc_cents' => 999999,
             'lines' => $this->sampleLines(),
         ]);
     }

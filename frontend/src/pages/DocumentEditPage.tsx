@@ -22,7 +22,7 @@ import {
   formatMoney,
   typeLabel,
 } from '../format'
-import type { Client, Document, DocumentLine } from '../types'
+import type { Client, Company, Document, DocumentLine } from '../types'
 
 type LineForm = {
   key: string
@@ -30,7 +30,6 @@ type LineForm = {
   quantity: string
   unit: string
   unit_price: string
-  vat_rate_bp: number
 }
 
 const VAT_OPTIONS = [
@@ -47,7 +46,6 @@ function emptyLine(): LineForm {
     quantity: '1',
     unit: 'u',
     unit_price: '0,00',
-    vat_rate_bp: 2000,
   }
 }
 
@@ -66,7 +64,6 @@ function linesFromDoc(lines: DocumentLine[] | undefined): LineForm[] {
     quantity: formatQtyInput(l.quantity),
     unit: l.unit,
     unit_price: centsToEurosInput(l.unit_price_ht_cents),
-    vat_rate_bp: l.vat_rate_bp,
   }))
 }
 
@@ -78,7 +75,6 @@ function toPayloadLines(lines: LineForm[]) {
       quantity: Number.parseFloat(l.quantity.replace(',', '.')) || 0,
       unit: l.unit || 'u',
       unit_price_ht_cents: eurosToCents(l.unit_price),
-      vat_rate_bp: l.vat_rate_bp,
     }))
 }
 
@@ -99,6 +95,7 @@ export default function DocumentEditPage() {
 
   const [clients, setClients] = useState<Client[]>([])
   const [client, setClient] = useState<Client | null>(null)
+  const [vatExempt, setVatExempt] = useState(false)
   const [docType, setDocType] = useState<'quote' | 'invoice'>(
     search.get('type') === 'invoice' ? 'invoice' : 'quote',
   )
@@ -111,7 +108,8 @@ export default function DocumentEditPage() {
   const [siteAddress2, setSiteAddress2] = useState('')
   const [sitePostal, setSitePostal] = useState('')
   const [siteCity, setSiteCity] = useState('')
-  const [depositPercent, setDepositPercent] = useState('0')
+  const [vatRateBp, setVatRateBp] = useState(2000)
+  const [depositAmount, setDepositAmount] = useState('0,00')
   const [deductionLabel, setDeductionLabel] = useState('')
   const [deductionAmount, setDeductionAmount] = useState('0,00')
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
@@ -120,11 +118,21 @@ export default function DocumentEditPage() {
   const [busy, setBusy] = useState(false)
 
   const editable = status === 'draft'
+  const effectiveVatRate = vatExempt ? 0 : vatRateBp
 
   useEffect(() => {
     api<{ items: Client[] }>('/clients')
       .then((r) => setClients(r.items))
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
+    api<Company>('/company')
+      .then((c) => {
+        const exempt = Boolean(c.vat_exempt)
+        setVatExempt(exempt)
+        if (exempt) setVatRateBp(0)
+      })
+      .catch(() => {
+        /* réglages optionnels pour l’aperçu TVA */
+      })
   }, [])
 
   useEffect(() => {
@@ -141,7 +149,8 @@ export default function DocumentEditPage() {
         setSiteAddress2(doc.site_address_line2 ?? '')
         setSitePostal(doc.site_postal_code ?? '')
         setSiteCity(doc.site_city ?? '')
-        setDepositPercent(String(doc.deposit_percent ?? 0).replace('.', ','))
+        setVatRateBp(doc.vat_rate_bp ?? 2000)
+        setDepositAmount(centsToEurosInput(doc.deposit_ttc_cents ?? 0))
         setDeductionLabel(doc.deduction_label ?? '')
         setDeductionAmount(centsToEurosInput(doc.deduction_ttc_cents ?? 0))
         setLines(linesFromDoc(doc.lines))
@@ -158,21 +167,14 @@ export default function DocumentEditPage() {
 
   const previewTotals = useMemo(() => {
     let ht = 0
-    let vat = 0
     for (const l of toPayloadLines(lines)) {
-      const lineHt = Math.round(l.quantity * l.unit_price_ht_cents)
-      const lineVat = Math.round((lineHt * l.vat_rate_bp) / 10000)
-      ht += lineHt
-      vat += lineVat
+      ht += Math.round(l.quantity * l.unit_price_ht_cents)
     }
+    const vat = Math.round((ht * effectiveVatRate) / 10000)
     return { ht, vat, ttc: ht + vat }
-  }, [lines])
+  }, [lines, effectiveVatRate])
 
-  const depositCents = useMemo(() => {
-    const pct = Number.parseFloat(depositPercent.replace(',', '.')) || 0
-    return Math.round((previewTotals.ttc * pct) / 100)
-  }, [depositPercent, previewTotals.ttc])
-
+  const depositCents = useMemo(() => eurosToCents(depositAmount), [depositAmount])
   const deductionCents = useMemo(() => eurosToCents(deductionAmount), [deductionAmount])
   const remainingCents = Math.max(0, (editable ? previewTotals.ttc : totals.ttc) - deductionCents)
 
@@ -210,7 +212,8 @@ export default function DocumentEditPage() {
       site_address_line2: siteAddress2,
       site_postal_code: sitePostal,
       site_city: siteCity,
-      deposit_percent: docType === 'quote' ? Number.parseFloat(depositPercent.replace(',', '.')) || 0 : 0,
+      vat_rate_bp: effectiveVatRate,
+      deposit_ttc_cents: docType === 'quote' ? eurosToCents(depositAmount) : 0,
       deduction_label: docType === 'invoice' ? deductionLabel : '',
       deduction_ttc_cents: docType === 'invoice' ? eurosToCents(deductionAmount) : 0,
       lines: toPayloadLines(lines),
@@ -389,7 +392,7 @@ export default function DocumentEditPage() {
                   setLines(next)
                 }}
               />
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <TextField
                   label="Qté"
                   value={line.quantity}
@@ -410,8 +413,6 @@ export default function DocumentEditPage() {
                     setLines(next)
                   }}
                 />
-              </Stack>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <TextField
                   label="P.U. HT (€)"
                   value={line.unit_price}
@@ -422,23 +423,6 @@ export default function DocumentEditPage() {
                     setLines(next)
                   }}
                 />
-                <TextField
-                  select
-                  label="TVA"
-                  value={line.vat_rate_bp}
-                  disabled={!editable}
-                  onChange={(e) => {
-                    const next = [...lines]
-                    next[index] = { ...line, vat_rate_bp: Number(e.target.value) }
-                    setLines(next)
-                  }}
-                >
-                  {VAT_OPTIONS.map((o) => (
-                    <MenuItem key={o.value} value={o.value}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
                 {editable && (
                   <IconButton
                     aria-label="Supprimer la ligne"
@@ -460,18 +444,36 @@ export default function DocumentEditPage() {
         </Button>
       )}
 
-      {docType === 'quote' && (
-        <TextField
-          label="Acompte à la signature (%)"
-          value={depositPercent}
-          onChange={(e) => setDepositPercent(e.target.value)}
-          disabled={!editable}
-          helperText={
-            Number.parseFloat(depositPercent.replace(',', '.')) > 0
-              ? `Soit ${formatMoney(depositCents)} sur le total TTC`
-              : '0 = pas de mention d’acompte sur le PDF'
-          }
-        />
+      <Divider />
+
+      {(!vatExempt || docType === 'quote') && (
+        <Stack direction="row" spacing={1}>
+          {!vatExempt && (
+            <TextField
+              select
+              label="TVA"
+              value={vatRateBp}
+              disabled={!editable}
+              onChange={(e) => setVatRateBp(Number(e.target.value))}
+              sx={{ flex: 1 }}
+            >
+              {VAT_OPTIONS.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+          {docType === 'quote' && (
+            <TextField
+              label="Acompte (€)"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              disabled={!editable}
+              sx={{ flex: 1 }}
+            />
+          )}
+        </Stack>
       )}
 
       {docType === 'invoice' && (
@@ -507,6 +509,9 @@ export default function DocumentEditPage() {
         <Typography>Total HT : {formatMoney(displayTotals.ht)}</Typography>
         <Typography>TVA : {formatMoney(displayTotals.vat)}</Typography>
         <Typography sx={{ fontWeight: 700 }}>Total TTC : {formatMoney(displayTotals.ttc)}</Typography>
+        {docType === 'quote' && depositCents > 0 && (
+          <Typography>Acompte : {formatMoney(depositCents)}</Typography>
+        )}
         {docType === 'invoice' && deductionCents > 0 && (
           <>
             <Typography>

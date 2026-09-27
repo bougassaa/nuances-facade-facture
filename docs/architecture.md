@@ -36,17 +36,17 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 
 ## Calculs monétaires
 
-- Stockage en **centimes** (entiers) pour prix unitaires HT, totaux HT/TVA/TTC, déduction facture.
+- Stockage en **centimes** (entiers) pour prix unitaires HT, totaux HT/TVA/TTC, acompte devis, déduction facture.
 - Quantités en décimal (4 décimales max).
-- Arrondi à la ligne : `round(qty * unit_ht_cents)` puis somme ; TVA par taux regroupé.
-- Acompte devis : `round(total_ttc_cents * deposit_percent / 100)`.
+- Arrondi HT à la ligne : `round(qty * unit_ht_cents)` puis somme ; TVA une seule fois : `round(total_ht_cents * vat_rate_bp / 10000)`.
+- Acompte devis : montant TTC saisi (`deposit_ttc_cents`), ≤ total TTC.
 - Reste à payer facture : `total_ttc_cents - deduction_ttc_cents` (affichage).
 
 ## PDF
 
 - Template HTML PHP → dompdf 3.x, pied de page via callback canvas (pagination + mentions légales).
 - Généré à la demande (téléchargement) et après action « Envoyer ».
-- Schéma SQL : `001_init.sql` (install) ; migration `002_document_layout.sql` (bases déjà en prod).
+- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql` (bases déjà en prod).
 
 ## Sécurité
 

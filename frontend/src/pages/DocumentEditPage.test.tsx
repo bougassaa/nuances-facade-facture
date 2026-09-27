@@ -17,6 +17,13 @@ describe('DocumentEditPage', () => {
       'fetch',
       vi.fn(async (input: RequestInfo) => {
         const url = String(input)
+        if (url.includes('/company')) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
+          }
+        }
         if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
           return {
             ok: true,
@@ -57,7 +64,8 @@ describe('DocumentEditPage', () => {
 
     expect(await screen.findByLabelText('Chantier')).toBeInTheDocument()
     expect(screen.getByText('Adresse du projet')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Acompte à la signature/)).toBeInTheDocument()
+    expect(await screen.findByLabelText('Acompte (€)')).toBeInTheDocument()
+    expect(screen.getByLabelText('TVA')).toBeInTheDocument()
   })
 
   it('affiche déduction et reste à payer sur une facture', async () => {
@@ -66,6 +74,13 @@ describe('DocumentEditPage', () => {
       'fetch',
       vi.fn(async (input: RequestInfo) => {
         const url = String(input)
+        if (url.includes('/company')) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
+          }
+        }
         if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
           return {
             ok: true,

@@ -50,7 +50,8 @@ final class PdfTemplateTest extends IntegrationTestCase
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
             'object' => 'Chantier M. TEST',
-            'deposit_percent' => 30,
+            'deposit_ttc_cents' => 29700,
+            'vat_rate_bp' => 1000,
             'site_address_line1' => '56 chemin de la berche',
             'site_postal_code' => '26790',
             'site_city' => 'suze la rousse',
@@ -60,17 +61,17 @@ final class PdfTemplateTest extends IntegrationTestCase
                     'quantity' => 1,
                     'unit' => 'u',
                     'unit_price_ht_cents' => 90000,
-                    'vat_rate_bp' => 1000,
                 ],
             ],
         ]);
         $html = $this->pdf->renderHtml($id);
-        $this->assertStringContainsString('Acompte à la signature de 30 %', $html);
+        $this->assertStringContainsString('Acompte à la signature de 297,00 €', $html);
         $this->assertStringContainsString('Bon pour travaux', $html);
         $this->assertStringContainsString('Adresse du projet', $html);
         $this->assertStringContainsString('Chantier M. TEST', $html);
         $this->assertStringContainsString('Valable 3 mois', $html);
         $this->assertStringContainsString('TVA à 10 %', $html);
+        $this->assertStringNotContainsString('>TVA</th>', $html);
     }
 
     public function testInvoiceHtmlContainsDeductionAndRemaining(): void
@@ -81,13 +82,13 @@ final class PdfTemplateTest extends IntegrationTestCase
             'object' => 'Chantier Facture',
             'deduction_label' => 'Acompte fournitures',
             'deduction_ttc_cents' => 11000,
+            'vat_rate_bp' => 1000,
             'lines' => [
                 [
                     'label' => 'Lavage support.',
                     'quantity' => 1,
                     'unit' => 'u',
                     'unit_price_ht_cents' => 100000,
-                    'vat_rate_bp' => 1000,
                 ],
             ],
         ]);
