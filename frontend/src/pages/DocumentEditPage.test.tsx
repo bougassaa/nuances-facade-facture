@@ -72,6 +72,52 @@ describe('DocumentEditPage', () => {
     expect(screen.getByLabelText('TVA')).toBeInTheDocument()
   })
 
+  it('propose les unités prédéfinies et n’affiche que l’abréviation une fois choisie', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/company')) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
+          }
+        }
+        if (url.includes('/clients')) {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
+        }
+        return { ok: true, status: 200, text: async () => '{}' }
+      }),
+    )
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/new?type=quote']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    const unit = await screen.findByRole('combobox', { name: 'Unité' })
+    expect(unit).toHaveTextContent('m²')
+
+    await user.click(unit)
+    expect(await screen.findByRole('option', { name: 'm²' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'ml (mètre linéaire)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'u (unité)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'forfait' })).toBeInTheDocument()
+    expect(screen.getAllByRole('option')).toHaveLength(4)
+
+    await user.click(screen.getByRole('option', { name: 'ml (mètre linéaire)' }))
+    expect(unit).toHaveTextContent('ml')
+    expect(unit).not.toHaveTextContent('mètre')
+  })
+
   it('calcule un total avec virgule en quantité et point en prix', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(

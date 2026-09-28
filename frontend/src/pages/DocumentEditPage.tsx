@@ -42,12 +42,34 @@ const VAT_OPTIONS = [
   { value: 0, label: '0 %' },
 ]
 
+const UNIT_OPTIONS = [
+  { value: 'm²', menu: 'm²' },
+  { value: 'ml', menu: 'ml (mètre linéaire)' },
+  { value: 'u', menu: 'u (unité)' },
+  { value: 'forfait', menu: 'forfait' },
+] as const
+
+function normalizeUnit(raw: string): string {
+  const value = raw.trim()
+  const key = value.toLowerCase()
+  if (key === 'm2' || key === 'm²') return 'm²'
+  if (key === 'ml') return 'ml'
+  if (key === 'u' || key === 'unité' || key === 'unite') return 'u'
+  if (key === 'forfait') return 'forfait'
+  return value || 'm²'
+}
+
+function unitOptionsFor(current: string) {
+  if (UNIT_OPTIONS.some((option) => option.value === current)) return UNIT_OPTIONS
+  return [...UNIT_OPTIONS, { value: current, menu: current }]
+}
+
 function emptyLine(): LineForm {
   return {
     key: crypto.randomUUID(),
     label: '',
     quantity: '1',
-    unit: 'u',
+    unit: 'm²',
     unit_price: '0,00',
   }
 }
@@ -58,7 +80,7 @@ function linesFromDoc(lines: DocumentLine[] | undefined): LineForm[] {
     key: crypto.randomUUID(),
     label: l.label,
     quantity: formatQuantityInput(l.quantity),
-    unit: l.unit,
+    unit: normalizeUnit(l.unit),
     unit_price: centsToEurosInput(l.unit_price_ht_cents),
   }))
 }
@@ -69,7 +91,7 @@ function toPayloadLines(lines: LineForm[]) {
     .map((l) => ({
       label: l.label.trim(),
       quantity: parseQuantity(l.quantity),
-      unit: l.unit || 'u',
+      unit: normalizeUnit(l.unit),
       unit_price_ht_cents: eurosToCents(l.unit_price),
     }))
 }
@@ -402,6 +424,7 @@ export default function DocumentEditPage() {
                   }}
                 />
                 <TextField
+                  select
                   label="Unité"
                   value={line.unit}
                   disabled={!editable}
@@ -410,7 +433,18 @@ export default function DocumentEditPage() {
                     next[index] = { ...line, unit: e.target.value }
                     setLines(next)
                   }}
-                />
+                  slotProps={{
+                    select: {
+                      renderValue: (selected) => String(selected),
+                    },
+                  }}
+                >
+                  {unitOptionsFor(line.unit).map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.menu}
+                    </MenuItem>
+                  ))}
+                </TextField>
                 <NumberField
                   label="P.U. HT (€)"
                   mode="money"
