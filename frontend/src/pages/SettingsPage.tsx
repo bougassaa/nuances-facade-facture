@@ -388,6 +388,7 @@ export default function SettingsPage() {
                     }}
                   />
                   <Button
+                    type="button"
                     variant="contained"
                     disabled={designationBusy}
                     onClick={() => saveDesignation(index)}
@@ -395,6 +396,7 @@ export default function SettingsPage() {
                     Enregistrer
                   </Button>
                   <IconButton
+                    type="button"
                     aria-label="Supprimer la désignation"
                     onClick={() => deleteDesignation(index)}
                     disabled={designationBusy}
@@ -407,6 +409,7 @@ export default function SettingsPage() {
           </Card>
         ))}
         <Button
+          type="button"
           variant="outlined"
           onClick={() => setDesignations([...designations, emptyDesignation()])}
           disabled={designationBusy}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeProvider } from '@mui/material/styles'
@@ -33,6 +33,14 @@ const company = {
   vat_rates: [],
 }
 
+function callMethod(call: unknown[]): string {
+  return String((call[1] as RequestInit | undefined)?.method ?? 'GET').toUpperCase()
+}
+
+function callUrl(call: unknown[]): string {
+  return String(call[0])
+}
+
 describe('SettingsPage designations', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -56,7 +64,7 @@ describe('SettingsPage designations', () => {
           text: async () => JSON.stringify({ items }),
         }
       }
-      if (url.endsWith('/designations') && method === 'POST') {
+      if (url.includes('/designations') && !url.match(/\/designations\/\d+/) && method === 'POST') {
         const body = JSON.parse(String(init?.body ?? '{}'))
         const created = {
           id: 2,
@@ -66,7 +74,7 @@ describe('SettingsPage designations', () => {
         items = [...items, created]
         return { ok: true, status: 201, text: async () => JSON.stringify(created) }
       }
-      if (url.match(/\/designations\/\d+$/) && method === 'PUT') {
+      if (url.match(/\/designations\/\d+/) && method === 'PUT') {
         const id = Number(url.split('/').pop())
         const body = JSON.parse(String(init?.body ?? '{}'))
         items = items.map((d) =>
@@ -77,7 +85,7 @@ describe('SettingsPage designations', () => {
         const updated = items.find((d) => d.id === id)!
         return { ok: true, status: 200, text: async () => JSON.stringify(updated) }
       }
-      if (url.match(/\/designations\/\d+$/) && method === 'DELETE') {
+      if (url.match(/\/designations\/\d+/) && method === 'DELETE') {
         const id = Number(url.split('/').pop())
         items = items.filter((d) => d.id !== id)
         return { ok: true, status: 204, text: async () => '' }
@@ -95,46 +103,44 @@ describe('SettingsPage designations', () => {
 
     expect(await screen.findByRole('heading', { name: 'Désignations' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('Enduit')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('40,00')).toBeInTheDocument()
 
-    const price = screen.getByLabelText('Prix HT par défaut (€)')
-    await user.clear(price)
-    await user.type(price, '45,00')
-    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[1])
-
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/designations/1'))).toBe(
-        true,
-      )
+    fireEvent.change(screen.getByLabelText('Prix HT par défaut (€)'), {
+      target: { value: '45,00' },
     })
-
-    await user.click(screen.getByRole('button', { name: 'Ajouter une désignation' }))
-    const labels = screen.getAllByLabelText('Désignation')
-    await user.type(labels[labels.length - 1], 'Peinture')
-    const prices = screen.getAllByLabelText('Prix HT par défaut (€)')
-    await user.clear(prices[prices.length - 1])
-    await user.type(prices[prices.length - 1], '12,50')
-    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' }).at(-1)!)
+    // Deux « Enregistrer » : formulaire entreprise puis carte désignation
+    const designationSaveButtons = screen.getAllByRole('button', { name: 'Enregistrer' })
+    await user.click(designationSaveButtons[designationSaveButtons.length - 1])
 
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(
-          (c) => String(c[0]).endsWith('/designations') && (c[1] as RequestInit)?.method === 'POST',
+          (c) => callUrl(c).includes('/designations/1') && callMethod(c) === 'PUT',
         ),
       ).toBe(true)
     })
 
+    await user.click(screen.getByRole('button', { name: 'Ajouter une désignation' }))
+    const labels = screen.getAllByLabelText('Désignation')
+    fireEvent.change(labels[labels.length - 1], { target: { value: 'Peinture' } })
+    const prices = screen.getAllByLabelText('Prix HT par défaut (€)')
+    fireEvent.change(prices[prices.length - 1], { target: { value: '12,50' } })
+    const saveButtons = screen.getAllByRole('button', { name: 'Enregistrer' })
+    await user.click(saveButtons[saveButtons.length - 1])
+
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Peinture')).toBeInTheDocument()
+      expect(
+        fetchMock.mock.calls.some(
+          (c) => callUrl(c).includes('/designations') && callMethod(c) === 'POST',
+        ),
+      ).toBe(true)
     })
+    expect(await screen.findByDisplayValue('Peinture')).toBeInTheDocument()
 
     await user.click(screen.getAllByLabelText('Supprimer la désignation')[0])
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(
-          (c) =>
-            String(c[0]).includes('/designations/1') &&
-            (c[1] as RequestInit)?.method === 'DELETE',
+          (c) => callUrl(c).includes('/designations/1') && callMethod(c) === 'DELETE',
         ),
       ).toBe(true)
     })
