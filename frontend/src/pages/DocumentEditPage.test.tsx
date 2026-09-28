@@ -64,8 +64,55 @@ describe('DocumentEditPage', () => {
 
     expect(await screen.findByLabelText('Chantier')).toBeInTheDocument()
     expect(screen.getByText('Adresse du projet')).toBeInTheDocument()
-    expect(await screen.findByLabelText('Acompte (€)')).toBeInTheDocument()
+    const deposit = await screen.findByLabelText('Acompte (€)')
+    expect(deposit).toHaveAttribute('inputmode', 'decimal')
+    expect(screen.getByLabelText('Qté')).toHaveAttribute('inputmode', 'decimal')
+    expect(screen.getByLabelText('P.U. HT (€)')).toHaveAttribute('inputmode', 'decimal')
+    expect(screen.getByLabelText('Code postal')).toHaveAttribute('inputmode', 'numeric')
     expect(screen.getByLabelText('TVA')).toBeInTheDocument()
+  })
+
+  it('calcule un total avec virgule en quantité et point en prix', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/company')) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ vat_exempt: true, vat_rates: [] }),
+          }
+        }
+        if (url.includes('/clients')) {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
+        }
+        return { ok: true, status: 200, text: async () => '{}' }
+      }),
+    )
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/new?type=quote']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    const qty = await screen.findByLabelText('Qté')
+    await user.type(screen.getByLabelText('Désignation'), 'Enduit')
+    await user.clear(qty)
+    await user.type(qty, '2,5')
+    expect(qty).toHaveValue('2,5')
+    const price = screen.getByLabelText('P.U. HT (€)')
+    await user.clear(price)
+    await user.paste('10.00')
+    expect(price).toHaveValue('10,00')
+    expect(screen.getByText(/Total HT/)).toHaveTextContent(/25,00/)
   })
 
   it('affiche déduction et reste à payer sur une facture', async () => {

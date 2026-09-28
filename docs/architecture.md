@@ -38,6 +38,7 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 
 - Stockage en **centimes** (entiers) pour prix unitaires HT, totaux HT/TVA/TTC, acompte devis, déduction facture.
 - Quantités en décimal (4 décimales max).
+- Saisie : clavier décimal pour quantité et montants, clavier numérique pour compteurs, code postal et SIRET, clavier téléphone pour les numéros. Virgule et point sont acceptés comme séparateur ; l’API et MySQL reçoivent des nombres (centimes entiers, quantité décimale), jamais une chaîne localisée.
 - Arrondi HT à la ligne : `round(qty * unit_ht_cents)` puis somme ; TVA une seule fois : `round(total_ht_cents * vat_rate_bp / 10000)`.
 - Acompte devis : montant TTC saisi (`deposit_ttc_cents`), ≤ total TTC.
 - Reste à payer facture : `total_ttc_cents - deduction_ttc_cents` (affichage).

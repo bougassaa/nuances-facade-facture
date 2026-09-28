@@ -50,7 +50,7 @@ Les documents `sent` (et suivants) ne sont plus modifiables (lignes figées). Un
 
 ## Lignes
 
-Libellé, quantité, unité (ex. m², u, forfait), prix unitaire HT (centimes). Le taux de TVA est porté par le document.
+Libellé, quantité, unité (ex. m², u, forfait), prix unitaire HT (centimes). Le taux de TVA est porté par le document. Quantité, prix, acompte et déduction se saisissent avec une virgule ou un point ; seuls des nombres partent vers l’API.
 
 ## Compteurs
 

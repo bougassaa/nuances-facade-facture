@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import NumberField, { keyboardSlot } from '../components/NumberField'
 import type { Company } from '../types'
 
 export default function SettingsPage() {
@@ -106,6 +107,7 @@ export default function SettingsPage() {
               label="Code postal"
               value={form.postal_code}
               onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
+              slotProps={keyboardSlot('numeric')}
             />
             <TextField
               label="Ville"
@@ -117,6 +119,7 @@ export default function SettingsPage() {
             label="Téléphone"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            slotProps={keyboardSlot('tel')}
           />
           <TextField
             label="Email"
@@ -139,6 +142,7 @@ export default function SettingsPage() {
             label="SIRET"
             value={form.siret}
             onChange={(e) => setForm({ ...form, siret: e.target.value })}
+            slotProps={keyboardSlot('numeric')}
           />
           <TextField
             label="N° TVA"
@@ -218,17 +222,19 @@ export default function SettingsPage() {
             0121. Uniquement si aucun devis/facture de {year} n’a encore de numéro ici.
           </Alert>
           <Stack direction="row" spacing={1}>
-            <TextField
+            <NumberField
               label="Dernier n° devis"
+              mode="integer"
               value={lastQuote}
-              onChange={(e) => setLastQuote(e.target.value)}
+              onChange={setLastQuote}
               disabled={!canSeed && (form.counters?.quote ?? 0) > 0}
               helperText={`Compteur actuel : ${form.counters?.quote ?? 0}`}
             />
-            <TextField
+            <NumberField
               label="Dernier n° facture"
+              mode="integer"
               value={lastInvoice}
-              onChange={(e) => setLastInvoice(e.target.value)}
+              onChange={setLastInvoice}
               disabled={!canSeed && (form.counters?.invoice ?? 0) > 0}
               helperText={`Compteur actuel : ${form.counters?.invoice ?? 0}`}
             />

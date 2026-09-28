@@ -7,6 +7,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { keyboardSlot } from '../components/NumberField'
 import type { Client } from '../types'
 
 export default function ClientEditPage() {
@@ -78,6 +79,7 @@ export default function ClientEditPage() {
               label="Code postal"
               value={form.postal_code ?? ''}
               onChange={(e) => setForm({ ...form, postal_code: e.target.value })}
+              slotProps={keyboardSlot('numeric')}
             />
             <TextField
               label="Ville"
@@ -95,6 +97,7 @@ export default function ClientEditPage() {
             label="Téléphone"
             value={form.phone ?? ''}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            slotProps={keyboardSlot('tel')}
           />
           <TextField
             label="N° TVA"

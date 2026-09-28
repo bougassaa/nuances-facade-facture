@@ -84,6 +84,8 @@ function PaperNav({ value }: { value: number }) {
         bottom: 0,
         left: 0,
         right: 0,
+        zIndex: (theme) => theme.zIndex.appBar,
+        bgcolor: 'background.paper',
         borderTop: 1,
         borderColor: 'divider',
         display: { md: 'none' },

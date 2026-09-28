@@ -370,12 +370,12 @@ final class DocumentRepository
             throw new InvalidArgumentException('Taux de TVA invalide');
         }
 
-        $deposit = (int) ($data['deposit_ttc_cents'] ?? $existing['deposit_ttc_cents'] ?? 0);
+        $deposit = $this->totals->parseCents($data['deposit_ttc_cents'] ?? $existing['deposit_ttc_cents'] ?? 0);
         if ($deposit < 0) {
             throw new InvalidArgumentException('L’acompte ne peut pas être négatif');
         }
 
-        $deduction = (int) ($data['deduction_ttc_cents'] ?? $existing['deduction_ttc_cents'] ?? 0);
+        $deduction = $this->totals->parseCents($data['deduction_ttc_cents'] ?? $existing['deduction_ttc_cents'] ?? 0);
         if ($deduction < 0) {
             throw new InvalidArgumentException('La déduction ne peut pas être négative');
         }
@@ -454,8 +454,8 @@ final class DocumentRepository
                 continue;
             }
             $normalized[] = [
-                'quantity' => (float) ($line['quantity'] ?? 1),
-                'unit_price_ht_cents' => (int) ($line['unit_price_ht_cents'] ?? 0),
+                'quantity' => $this->totals->parseQuantity($line['quantity'] ?? 1),
+                'unit_price_ht_cents' => $this->totals->parseCents($line['unit_price_ht_cents'] ?? 0),
                 'label' => $label,
                 'unit' => trim((string) ($line['unit'] ?? 'u')) ?: 'u',
             ];

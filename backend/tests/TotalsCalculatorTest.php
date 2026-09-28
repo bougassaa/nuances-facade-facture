@@ -82,4 +82,20 @@ final class TotalsCalculatorTest extends TestCase
         ], 0);
         $this->assertSame(133, $result['lines'][0]['line_ht_cents']);
     }
+
+    public function testCommaAndDotDoNotTruncate(): void
+    {
+        $calc = new TotalsCalculator();
+        $this->assertSame(2.5, $calc->parseQuantity('2,5'));
+        $this->assertSame(2.5, $calc->parseQuantity('2.5'));
+        $this->assertSame(1250, $calc->parseCents('12,50'));
+        $this->assertSame(1250, $calc->parseCents('12.50'));
+        $this->assertSame(10000, $calc->parseCents(10000));
+        $this->assertSame(10000, $calc->parseCents('10000'));
+
+        $result = $calc->compute([
+            ['quantity' => '2,5', 'unit_price_ht_cents' => '10,00'],
+        ], 0);
+        $this->assertSame(2500, $result['total_ht_cents']);
+    }
 }

@@ -14,12 +14,15 @@ import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, downloadPdf } from '../api/client'
+import NumberField, { keyboardSlot } from '../components/NumberField'
 import StatusChip from '../components/StatusChip'
 import {
   centsToEurosInput,
   chantierFromClient,
   eurosToCents,
   formatMoney,
+  formatQuantityInput,
+  parseQuantity,
   typeLabel,
 } from '../format'
 import type { Client, Company, Document, DocumentLine } from '../types'
@@ -49,19 +52,12 @@ function emptyLine(): LineForm {
   }
 }
 
-function formatQtyInput(qty: number | string): string {
-  const n = typeof qty === 'number' ? qty : Number.parseFloat(String(qty).replace(',', '.'))
-  if (Number.isNaN(n)) return '1'
-  if (Math.abs(n - Math.round(n)) < 0.00001) return String(Math.round(n))
-  return String(n).replace('.', ',')
-}
-
 function linesFromDoc(lines: DocumentLine[] | undefined): LineForm[] {
   if (!lines || lines.length === 0) return [emptyLine()]
   return lines.map((l) => ({
     key: crypto.randomUUID(),
     label: l.label,
-    quantity: formatQtyInput(l.quantity),
+    quantity: formatQuantityInput(l.quantity),
     unit: l.unit,
     unit_price: centsToEurosInput(l.unit_price_ht_cents),
   }))
@@ -72,7 +68,7 @@ function toPayloadLines(lines: LineForm[]) {
     .filter((l) => l.label.trim() !== '')
     .map((l) => ({
       label: l.label.trim(),
-      quantity: Number.parseFloat(l.quantity.replace(',', '.')) || 0,
+      quantity: parseQuantity(l.quantity),
       unit: l.unit || 'u',
       unit_price_ht_cents: eurosToCents(l.unit_price),
     }))
@@ -352,6 +348,7 @@ export default function DocumentEditPage() {
           value={sitePostal}
           onChange={(e) => setSitePostal(e.target.value)}
           disabled={!editable}
+          slotProps={keyboardSlot('numeric')}
         />
         <TextField
           label="Ville"
@@ -393,13 +390,14 @@ export default function DocumentEditPage() {
                 }}
               />
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <TextField
+                <NumberField
                   label="Qté"
+                  mode="quantity"
                   value={line.quantity}
                   disabled={!editable}
-                  onChange={(e) => {
+                  onChange={(quantity) => {
                     const next = [...lines]
-                    next[index] = { ...line, quantity: e.target.value }
+                    next[index] = { ...line, quantity }
                     setLines(next)
                   }}
                 />
@@ -413,13 +411,14 @@ export default function DocumentEditPage() {
                     setLines(next)
                   }}
                 />
-                <TextField
+                <NumberField
                   label="P.U. HT (€)"
+                  mode="money"
                   value={line.unit_price}
                   disabled={!editable}
-                  onChange={(e) => {
+                  onChange={(unit_price) => {
                     const next = [...lines]
-                    next[index] = { ...line, unit_price: e.target.value }
+                    next[index] = { ...line, unit_price }
                     setLines(next)
                   }}
                 />
@@ -465,10 +464,11 @@ export default function DocumentEditPage() {
             </TextField>
           )}
           {docType === 'quote' && (
-            <TextField
+            <NumberField
               label="Acompte (€)"
+              mode="money"
               value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
+              onChange={setDepositAmount}
               disabled={!editable}
               sx={{ flex: 1 }}
             />
@@ -485,10 +485,11 @@ export default function DocumentEditPage() {
             disabled={!editable}
             placeholder="Acompte fournitures"
           />
-          <TextField
+          <NumberField
             label="Montant déduit TTC (€)"
+            mode="money"
             value={deductionAmount}
-            onChange={(e) => setDeductionAmount(e.target.value)}
+            onChange={setDeductionAmount}
             disabled={!editable}
             helperText="0 = pas de déduction sur le PDF"
           />
