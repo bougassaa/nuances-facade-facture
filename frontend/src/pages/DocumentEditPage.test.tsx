@@ -7,6 +7,40 @@ import CssBaseline from '@mui/material/CssBaseline'
 import DocumentEditPage from './DocumentEditPage'
 import theme from '../theme'
 
+function mockFetch(handlers: Record<string, unknown> = {}) {
+  return vi.fn(async (input: RequestInfo) => {
+    const url = String(input)
+    if (url.includes('/designations')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify(
+            handlers.designations ?? {
+              items: [],
+            },
+          ),
+      }
+    }
+    if (url.includes('/company')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify(handlers.company ?? { vat_exempt: false, vat_rates: [] }),
+      }
+    }
+    if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(handlers.clients ?? { items: [] }),
+      }
+    }
+    return { ok: true, status: 200, text: async () => '{}' }
+  })
+}
+
 describe('DocumentEditPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -15,39 +49,23 @@ describe('DocumentEditPage', () => {
   it('affiche chantier, adresse projet et acompte sur un devis', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes('/company')) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
-          }
-        }
-        if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () =>
-              JSON.stringify({
-                items: [
-                  {
-                    id: 1,
-                    name: 'M. Johan PASCAL',
-                    address_line1: '56 chemin de la berche',
-                    address_line2: '',
-                    postal_code: '26790',
-                    city: 'suze la rousse',
-                    email: 'a@b.fr',
-                    phone: '06',
-                    vat_number: '',
-                    notes: null,
-                  },
-                ],
-              }),
-          }
-        }
-        return { ok: true, status: 200, text: async () => '{}' }
+      mockFetch({
+        clients: {
+          items: [
+            {
+              id: 1,
+              name: 'M. Johan PASCAL',
+              address_line1: '56 chemin de la berche',
+              address_line2: '',
+              postal_code: '26790',
+              city: 'suze la rousse',
+              email: 'a@b.fr',
+              phone: '06',
+              vat_number: '',
+              notes: null,
+            },
+          ],
+        },
       }),
     )
 
@@ -74,23 +92,7 @@ describe('DocumentEditPage', () => {
 
   it('propose les unités prédéfinies et n’affiche que l’abréviation une fois choisie', async () => {
     const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes('/company')) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
-          }
-        }
-        if (url.includes('/clients')) {
-          return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
-        }
-        return { ok: true, status: 200, text: async () => '{}' }
-      }),
-    )
+    vi.stubGlobal('fetch', mockFetch())
 
     render(
       <ThemeProvider theme={theme}>
@@ -118,25 +120,40 @@ describe('DocumentEditPage', () => {
     expect(unit).not.toHaveTextContent('mètre')
   })
 
-  it('calcule un total avec virgule en quantité et point en prix', async () => {
+  it('préremplit le prix HT à la sélection d’une désignation', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes('/company')) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify({ vat_exempt: true, vat_rates: [] }),
-          }
-        }
-        if (url.includes('/clients')) {
-          return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
-        }
-        return { ok: true, status: 200, text: async () => '{}' }
+      mockFetch({
+        designations: {
+          items: [{ id: 1, label: 'Enduit monocouche', unit_price_ht_cents: 4500 }],
+        },
       }),
     )
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/new?type=quote']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    const designation = await screen.findByLabelText('Désignation')
+    await user.click(designation)
+    const option = await screen.findByRole('option', { name: /Enduit monocouche/ })
+    await user.click(option)
+
+    expect(designation).toHaveValue('Enduit monocouche')
+    expect(screen.getByLabelText('P.U. HT (€)')).toHaveValue('45,00')
+  })
+
+  it('calcule un total avec virgule en quantité et point en prix', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch({ company: { vat_exempt: true, vat_rates: [] } }))
 
     render(
       <ThemeProvider theme={theme}>
@@ -163,27 +180,7 @@ describe('DocumentEditPage', () => {
 
   it('affiche déduction et reste à payer sur une facture', async () => {
     const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes('/company')) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify({ vat_exempt: false, vat_rates: [] }),
-          }
-        }
-        if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
-          return {
-            ok: true,
-            status: 200,
-            text: async () => JSON.stringify({ items: [] }),
-          }
-        }
-        return { ok: true, status: 200, text: async () => '{}' }
-      }),
-    )
+    vi.stubGlobal('fetch', mockFetch())
 
     render(
       <ThemeProvider theme={theme}>

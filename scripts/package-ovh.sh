@@ -42,6 +42,8 @@ cp "$ROOT/backend/storage/logos/.gitkeep" "$APP_OUT/storage/logos/.gitkeep"
 cp "$ROOT/backend/storage/sessions/.gitkeep" "$APP_OUT/storage/sessions/.gitkeep"
 cp "$ROOT/backend/sql/001_init.sql" "$APP_OUT/001_init.sql"
 cp "$ROOT/backend/sql/002_document_layout.sql" "$APP_OUT/002_document_layout.sql"
+cp "$ROOT/backend/sql/003_document_vat_deposit.sql" "$APP_OUT/003_document_vat_deposit.sql"
+cp "$ROOT/backend/sql/004_line_designations.sql" "$APP_OUT/004_line_designations.sql"
 
 # Config prod (exemple) — à copier en config.local.php sur le serveur
 cat > "$APP_OUT/config/config.example.php" <<'PHP'

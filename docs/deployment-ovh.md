@@ -5,7 +5,7 @@
 1. Hébergement web OVH (offre classique) avec PHP 8.4.
 2. Domaine `nuances-facade.fr` déjà sur l’hébergement (`www/`).
 3. Multisite : ajouter le sous-domaine `facture.nuances-facade.fr` avec racine `facture/` et SSL ([guide multisite](https://docs.ovhcloud.com/en/guides/web-cloud/web-hosting/multisites-configure-multisite.md)).
-4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql` puis `003_document_vat_deposit.sql`.
+4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql`, puis `003_document_vat_deposit.sql`, puis `004_line_designations.sql`.
 
 ## Arborescence FTP / SFTP
 

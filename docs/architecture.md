@@ -47,7 +47,7 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 
 - Template HTML PHP → dompdf 3.x, pied de page via callback canvas (pagination + mentions légales).
 - Généré à la demande (téléchargement) et après action « Envoyer ».
-- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql` (bases déjà en prod).
+- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql`, `004_line_designations.sql` (bases déjà en prod).
 
 ## Sécurité
 

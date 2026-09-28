@@ -17,11 +17,15 @@ final class DocumentRepository
     /** @var list<int> */
     private const ALLOWED_VAT_RATES = [0, 550, 1000, 2000];
 
+    private readonly LineDesignationRepository $designations;
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly TotalsCalculator $totals,
         private readonly DocumentNumberService $numbers,
+        ?LineDesignationRepository $designations = null,
     ) {
+        $this->designations = $designations ?? new LineDesignationRepository($pdo);
     }
 
     public function list(?string $docType = null, int $limit = 50): array
@@ -463,6 +467,8 @@ final class DocumentRepository
 
         $computed = $this->totals->compute($normalized, $effectiveRate, $vatExempt);
         $this->assertWithinTotal($limitCents, $computed['total_ttc_cents'], $type);
+
+        $this->designations->ensureMissingFromLines($normalized);
 
         $ins = $this->pdo->prepare(
             'INSERT INTO document_lines

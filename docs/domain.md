@@ -52,6 +52,15 @@ Les documents `sent` (et suivants) ne sont plus modifiables (lignes figées). Un
 
 Libellé, quantité, unité au choix parmi `m²`, `ml`, `u` et `forfait` (le menu détaille « ml (mètre linéaire) » et « u (unité) », seule l’abréviation est enregistrée et imprimée ; une ligne neuve est en `m²`), prix unitaire HT (centimes). Le taux de TVA est porté par le document. Quantité, prix, acompte et déduction se saisissent avec une virgule ou un point ; seuls des nombres partent vers l’API.
 
+## Catalogue de désignations
+
+Table `line_designations` : libellés réutilisables avec un prix unitaire HT par défaut (centimes).
+
+- À la saisie d’une ligne, le champ Désignation propose les entrées existantes (saisie libre possible). Choisir une entrée préremplit le prix HT de la ligne ; ce prix reste modifiable sans mettre à jour le catalogue.
+- À l’enregistrement d’un devis ou d’une facture, chaque libellé encore inconnu est ajouté au catalogue avec le prix de la première ligne qui le porte. Un libellé déjà connu n’est jamais écrasé depuis le document.
+- Gestion dans Paramètres : créer, renommer, changer le prix par défaut, supprimer. Renommer ou supprimer n’altère pas les documents déjà enregistrés.
+- Unicité du libellé sans distinction de casse (`utf8mb4_unicode_ci`).
+
 ## Compteurs
 
 Table `counters` : une ligne par `(type, year)`. Incrément sous verrou (`SELECT … FOR UPDATE`) à l’émission pour une séquence sans trou.

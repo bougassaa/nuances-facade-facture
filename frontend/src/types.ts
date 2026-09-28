@@ -1,3 +1,9 @@
+export type LineDesignation = {
+  id: number
+  label: string
+  unit_price_ht_cents: number
+}
+
 export type Client = {
   id: number
   name: string

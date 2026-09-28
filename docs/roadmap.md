@@ -19,7 +19,7 @@
 - [ ] Avoirs (credit notes)
 - [ ] Situations de travaux / acomptes liés (report devis → facture, historique)
 - [ ] Multi-utilisateurs / rôles
-- [ ] Catalogue d’articles / ouvrages fréquents
+- [x] Catalogue de désignations (saisie + prix HT par défaut)
 - [ ] Export comptable (CSV)
 
 ## Fait (post-MVP)

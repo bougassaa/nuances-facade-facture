@@ -20,7 +20,7 @@ cd backend && composer install && ./vendor/bin/phpunit
 | Domaine | `tests/Domain/*` | enums, transitions de statut autorisées / refusées |
 | Calculs | `tests/Services/Totals*` | centimes, arrondi ligne, TVA, franchise, acompte, reste à payer |
 | Numérotation | `tests/Services/DocumentNumber*` | séquence sans trou, préfixes DEV/FAC, 4 chiffres, seed compteur |
-| Repos | `tests/Repositories/*` | CRUD, send, convert, chantier, déduction, verrous (MySQL) |
+| Repos | `tests/Repositories/*` | CRUD, send, convert, chantier, déduction, désignations, verrous (MySQL) |
 | PDF | `tests/Services/PdfTemplate*` | HTML acompte, signature, reste à payer |
 | HTTP | `tests/Http/*` | routage, matching des params |
 | Auth | `tests/Auth/*` | hash mot de passe, CSRF, setup unique, durée session 1 an (`#[RunInSeparateProcess]`) |

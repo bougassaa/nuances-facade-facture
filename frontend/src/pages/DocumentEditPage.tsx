@@ -25,7 +25,7 @@ import {
   parseQuantity,
   typeLabel,
 } from '../format'
-import type { Client, Company, Document, DocumentLine } from '../types'
+import type { Client, Company, Document, DocumentLine, LineDesignation } from '../types'
 
 type LineForm = {
   key: string
@@ -112,6 +112,7 @@ export default function DocumentEditPage() {
   const navigate = useNavigate()
 
   const [clients, setClients] = useState<Client[]>([])
+  const [designations, setDesignations] = useState<LineDesignation[]>([])
   const [client, setClient] = useState<Client | null>(null)
   const [vatExempt, setVatExempt] = useState(false)
   const [docType, setDocType] = useState<'quote' | 'invoice'>(
@@ -142,6 +143,11 @@ export default function DocumentEditPage() {
     api<{ items: Client[] }>('/clients')
       .then((r) => setClients(r.items))
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
+    api<{ items: LineDesignation[] }>('/designations')
+      .then((r) => setDesignations(r.items))
+      .catch(() => {
+        /* catalogue optionnel au chargement */
+      })
     api<Company>('/company')
       .then((c) => {
         const exempt = Boolean(c.vat_exempt)
@@ -152,6 +158,15 @@ export default function DocumentEditPage() {
         /* réglages optionnels pour l’aperçu TVA */
       })
   }, [])
+
+  async function refreshDesignations() {
+    try {
+      const r = await api<{ items: LineDesignation[] }>('/designations')
+      setDesignations(r.items)
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (isNew) return
@@ -242,6 +257,7 @@ export default function DocumentEditPage() {
           method: 'POST',
           body: JSON.stringify(body),
         })
+        await refreshDesignations()
         navigate(`/documents/${created.id}`, { replace: true })
         return created
       }
@@ -254,6 +270,7 @@ export default function DocumentEditPage() {
         vat: updated.total_vat_cents,
         ttc: updated.total_ttc_cents,
       })
+      await refreshDesignations()
       return updated
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
@@ -401,15 +418,51 @@ export default function DocumentEditPage() {
         <Card key={line.key} variant="outlined">
           <CardContent>
             <Stack spacing={1.5}>
-              <TextField
-                label="Désignation"
+              <Autocomplete
+                freeSolo
+                options={designations}
+                getOptionLabel={(option) =>
+                  typeof option === 'string' ? option : option.label
+                }
+                filterOptions={(options, state) => {
+                  const q = state.inputValue.trim().toLowerCase()
+                  if (!q) return options
+                  return options.filter((o) => o.label.toLowerCase().includes(q))
+                }}
                 value={line.label}
+                inputValue={line.label}
                 disabled={!editable}
-                onChange={(e) => {
+                onInputChange={(_, value, reason) => {
+                  if (reason === 'reset') return
                   const next = [...lines]
-                  next[index] = { ...line, label: e.target.value }
+                  next[index] = { ...line, label: value }
                   setLines(next)
                 }}
+                onChange={(_, value) => {
+                  const next = [...lines]
+                  if (typeof value === 'string') {
+                    next[index] = { ...line, label: value }
+                  } else if (value) {
+                    next[index] = {
+                      ...line,
+                      label: value.label,
+                      unit_price: centsToEurosInput(value.unit_price_ht_cents),
+                    }
+                  } else {
+                    next[index] = { ...line, label: '' }
+                  }
+                  setLines(next)
+                }}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    {option.label}
+                    {' — '}
+                    {formatMoney(option.unit_price_ht_cents)}
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="Désignation" />
+                )}
               />
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <NumberField

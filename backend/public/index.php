@@ -10,6 +10,7 @@ use Nuances\Facture\Http\Router;
 use Nuances\Facture\Repositories\ClientRepository;
 use Nuances\Facture\Repositories\CompanyRepository;
 use Nuances\Facture\Repositories\DocumentRepository;
+use Nuances\Facture\Repositories\LineDesignationRepository;
 use Nuances\Facture\Services\DocumentNumberService;
 use Nuances\Facture\Services\PdfService;
 use Nuances\Facture\Services\TotalsCalculator;
@@ -23,9 +24,10 @@ $root = $app['root'];
 
 $auth = new SessionAuth($pdo);
 $clients = new ClientRepository($pdo);
+$designations = new LineDesignationRepository($pdo);
 $numbers = new DocumentNumberService($pdo);
 $company = new CompanyRepository($pdo, $config['paths']['logos'], $numbers);
-$docs = new DocumentRepository($pdo, new TotalsCalculator(), $numbers);
+$docs = new DocumentRepository($pdo, new TotalsCalculator(), $numbers, $designations);
 $pdf = new PdfService($pdo, $root . '/templates/pdf', $config['paths']['logos']);
 
 header('X-Content-Type-Options: nosniff');
@@ -206,6 +208,55 @@ $router->delete('/clients/{id}', static function (Request $req, array $params) u
     }
     try {
         $clients->delete((int) $params['id']);
+        Response::noContent();
+    } catch (Throwable $e) {
+        Response::error($e->getMessage(), 400);
+    }
+});
+
+$router->get('/designations', static function () use ($auth, $designations) {
+    if ($auth->requireUser() === null) {
+        return;
+    }
+    Response::json(['items' => $designations->list()]);
+});
+
+$router->post('/designations', static function (Request $req) use ($mutate, $designations) {
+    if (!$mutate($req)) {
+        return;
+    }
+    try {
+        $id = $designations->create($req->body);
+        Response::json($designations->find($id), 201);
+    } catch (RuntimeException $e) {
+        $status = str_contains($e->getMessage(), 'existe déjà') ? 409 : 400;
+        Response::error($e->getMessage(), $status);
+    } catch (Throwable $e) {
+        Response::error($e->getMessage(), 400);
+    }
+});
+
+$router->put('/designations/{id}', static function (Request $req, array $params) use ($mutate, $designations) {
+    if (!$mutate($req)) {
+        return;
+    }
+    try {
+        $designations->update((int) $params['id'], $req->body);
+        Response::json($designations->find((int) $params['id']));
+    } catch (RuntimeException $e) {
+        $status = str_contains($e->getMessage(), 'existe déjà') ? 409 : 400;
+        Response::error($e->getMessage(), $status);
+    } catch (Throwable $e) {
+        Response::error($e->getMessage(), 400);
+    }
+});
+
+$router->delete('/designations/{id}', static function (Request $req, array $params) use ($mutate, $designations) {
+    if (!$mutate($req)) {
+        return;
+    }
+    try {
+        $designations->delete((int) $params['id']);
         Response::noContent();
     } catch (Throwable $e) {
         Response::error($e->getMessage(), 400);

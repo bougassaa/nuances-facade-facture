@@ -51,6 +51,7 @@ abstract class IntegrationTestCase extends TestCase
         $pdo->exec('TRUNCATE TABLE documents');
         $pdo->exec('TRUNCATE TABLE counters');
         $pdo->exec('TRUNCATE TABLE clients');
+        $pdo->exec('TRUNCATE TABLE line_designations');
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 }
