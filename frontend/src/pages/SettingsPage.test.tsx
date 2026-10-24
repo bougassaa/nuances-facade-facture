@@ -41,6 +41,76 @@ function callUrl(call: unknown[]): string {
   return String(call[0])
 }
 
+describe('SettingsPage numérotation', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('laisse les compteurs saisissables même quand une séquence existe', async () => {
+    const user = userEvent.setup()
+    const started = {
+      ...company,
+      counters: { year: 2026, quote: 12, invoice: 4 },
+    }
+
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url.includes('/company') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify(started) }
+      }
+      if (url.includes('/company') && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              ...started,
+              counters: {
+                year: 2026,
+                quote: body.last_quote_number,
+                invoice: body.last_invoice_number,
+              },
+            }),
+        }
+      }
+      if (url.includes('/designations') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
+      }
+      return { ok: true, status: 200, text: async () => '{}' }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <SettingsPage />
+      </ThemeProvider>,
+    )
+
+    const quote = await screen.findByLabelText('Dernier n° devis')
+    const invoice = screen.getByLabelText('Dernier n° facture')
+    expect(quote).toBeEnabled()
+    expect(invoice).toBeEnabled()
+    expect(quote).toHaveValue('12')
+    expect(invoice).toHaveValue('4')
+
+    fireEvent.change(quote, { target: { value: '40' } })
+    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[0])
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        (c) => callUrl(c).includes('/company') && callMethod(c) === 'PUT',
+      )
+      expect(put).toBeTruthy()
+      const body = JSON.parse(String((put![1] as RequestInit).body))
+      expect(body.last_quote_number).toBe(40)
+      expect(body.last_invoice_number).toBe(4)
+    })
+  })
+})
+
 describe('SettingsPage designations', () => {
   beforeEach(() => {
     vi.restoreAllMocks()

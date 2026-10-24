@@ -70,8 +70,8 @@ final class CompanyRepository
 
         if ($this->numbers !== null && isset($data['last_quote_number'], $data['last_invoice_number'])) {
             $year = (int) date('Y');
-            $this->numbers->seedIfEmpty(DocumentType::Quote, $year, (int) $data['last_quote_number']);
-            $this->numbers->seedIfEmpty(DocumentType::Invoice, $year, (int) $data['last_invoice_number']);
+            $this->numbers->setLastNumber(DocumentType::Quote, $year, (int) $data['last_quote_number']);
+            $this->numbers->setLastNumber(DocumentType::Invoice, $year, (int) $data['last_invoice_number']);
         }
     }
 

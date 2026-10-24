@@ -170,8 +170,6 @@ export default function SettingsPage() {
   if (!form && !error) return null
 
   const year = form?.counters?.year ?? new Date().getFullYear()
-  const canSeed =
-    (form?.counters?.quote ?? 0) === 0 && (form?.counters?.invoice ?? 0) === 0
 
   return (
     <Stack spacing={3}>
@@ -312,8 +310,8 @@ export default function SettingsPage() {
 
             <Typography variant="subtitle1">Numérotation {year}</Typography>
             <Alert severity="info">
-              Indiquez le dernier numéro déjà émis hors de l’application (ex. 120). Le prochain sera
-              0121. Uniquement si aucun devis/facture de {year} n’a encore de numéro ici.
+              Indiquez le dernier numéro émis pour {year} (ex. 120). Le prochain document prendra
+              le suivant (0121). Les numéros déjà attribués ne changent pas.
             </Alert>
             <Stack direction="row" spacing={1}>
               <NumberField
@@ -321,7 +319,6 @@ export default function SettingsPage() {
                 mode="integer"
                 value={lastQuote}
                 onChange={setLastQuote}
-                disabled={!canSeed && (form.counters?.quote ?? 0) > 0}
                 helperText={`Compteur actuel : ${form.counters?.quote ?? 0}`}
               />
               <NumberField
@@ -329,7 +326,6 @@ export default function SettingsPage() {
                 mode="integer"
                 value={lastInvoice}
                 onChange={setLastInvoice}
-                disabled={!canSeed && (form.counters?.invoice ?? 0) > 0}
                 helperText={`Compteur actuel : ${form.counters?.invoice ?? 0}`}
               />
             </Stack>

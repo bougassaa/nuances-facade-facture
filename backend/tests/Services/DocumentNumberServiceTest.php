@@ -68,7 +68,7 @@ final class DocumentNumberServiceTest extends IntegrationTestCase
         $pdo->exec('DELETE FROM documents WHERE number LIKE "DEV-2096-%"');
         $svc = new DocumentNumberService($pdo);
 
-        $svc->seedIfEmpty(DocumentType::Quote, 2096, 120);
+        $svc->setLastNumber(DocumentType::Quote, 2096, 120);
 
         $pdo->beginTransaction();
         $n = $svc->next(DocumentType::Quote, 2096);
@@ -77,22 +77,54 @@ final class DocumentNumberServiceTest extends IntegrationTestCase
         $this->assertSame('DEV-2096-0121', $n);
     }
 
-    public function testSeedIgnoredWhenCounterExists(): void
+    public function testSetLastNumberOverridesExistingCounter(): void
     {
         $pdo = $this->pdo();
         $pdo->exec('DELETE FROM counters WHERE doc_type = "invoice" AND year = 2095');
+        $pdo->exec('DELETE FROM documents WHERE number LIKE "FAC-2095-%"');
+        $clientId = $this->insertClient('Client numérotation');
+        try {
+            $pdo->prepare(
+                'INSERT INTO documents (doc_type, status, number, client_id) VALUES ("invoice", "sent", "FAC-2095-0001", :client)'
+            )->execute(['client' => $clientId]);
+
+            $svc = new DocumentNumberService($pdo);
+            $svc->setLastNumber(DocumentType::Invoice, 2095, 500);
+
+            $pdo->beginTransaction();
+            $n = $svc->next(DocumentType::Invoice, 2095);
+            $pdo->commit();
+            $this->assertSame('FAC-2095-0501', $n);
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $pdo->exec('DELETE FROM documents WHERE number LIKE "FAC-2095-%"');
+            $pdo->prepare('DELETE FROM clients WHERE id = :id')->execute(['id' => $clientId]);
+            $pdo->exec('DELETE FROM counters WHERE doc_type = "invoice" AND year = 2095');
+        }
+    }
+
+    public function testSetLastNumberCanResetToZero(): void
+    {
+        $pdo = $this->pdo();
+        $pdo->exec('DELETE FROM counters WHERE doc_type = "quote" AND year = 2094');
         $svc = new DocumentNumberService($pdo);
 
-        $pdo->beginTransaction();
-        $first = $svc->next(DocumentType::Invoice, 2095);
-        $pdo->commit();
-        $this->assertSame('FAC-2095-0001', $first);
-
-        $svc->seedIfEmpty(DocumentType::Invoice, 2095, 500);
+        $svc->setLastNumber(DocumentType::Quote, 2094, 80);
+        $svc->setLastNumber(DocumentType::Quote, 2094, 0);
 
         $pdo->beginTransaction();
-        $second = $svc->next(DocumentType::Invoice, 2095);
+        $n = $svc->next(DocumentType::Quote, 2094);
         $pdo->commit();
-        $this->assertSame('FAC-2095-0002', $second);
+        $this->assertSame('DEV-2094-0001', $n);
+    }
+
+    private function insertClient(string $name): int
+    {
+        $pdo = $this->pdo();
+        $stmt = $pdo->prepare('INSERT INTO clients (name) VALUES (:name)');
+        $stmt->execute(['name' => $name]);
+        return (int) $pdo->lastInsertId();
     }
 }

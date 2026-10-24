@@ -65,7 +65,7 @@ Table `line_designations` : libellés réutilisables avec un prix unitaire HT pa
 
 Table `counters` : une ligne par `(type, year)`. Incrément sous verrou (`SELECT … FOR UPDATE`) à l’émission pour une séquence sans trou.
 
-Au démarrage, les réglages entreprise peuvent initialiser le dernier numéro déjà émis (année en cours) **uniquement** si aucun document de ce type n’a encore de numéro pour l’année.
+Les réglages entreprise permettent de fixer le dernier numéro émis pour l’année en cours, y compris lorsqu’une séquence a déjà commencé ou que des documents portent déjà un numéro. Le prochain envoi prend le numéro suivant. Les numéros déjà attribués ne sont pas réécrits. Les champs restent toujours saisissables.
 
 ## PDF
 

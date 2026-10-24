@@ -44,10 +44,11 @@ final class DocumentNumberService
     }
 
     /**
-     * Initialise le compteur de l'année uniquement s'il n'existe pas encore
-     * et qu'aucun document de ce type n'a déjà un numéro pour l'année.
+     * Fixe le dernier numéro émis pour le type et l'année.
+     * Écrase un compteur déjà démarré. Les documents déjà numérotés ne sont pas réécrits.
+     * Zéro sans ligne existante ne crée pas de compteur : le prochain envoi partira de 1.
      */
-    public function seedIfEmpty(DocumentType $type, int $year, int $lastNumber): void
+    public function setLastNumber(DocumentType $type, int $year, int $lastNumber): void
     {
         if ($lastNumber < 0) {
             throw new RuntimeException('Le dernier numéro doit être positif ou zéro');
@@ -61,33 +62,29 @@ final class DocumentNumberService
             $lock->execute(['type' => $type->value, 'year' => $year]);
             $existing = $lock->fetch();
 
-            $hasNumbered = $this->pdo->prepare(
-                "SELECT COUNT(*) FROM documents
-                 WHERE doc_type = :type AND number IS NOT NULL AND number LIKE :prefix"
-            );
-            $prefix = $type->numberPrefix() . '-' . $year . '-%';
-            $hasNumbered->execute(['type' => $type->value, 'prefix' => $prefix]);
-            $count = (int) $hasNumbered->fetchColumn();
-
-            if ($existing !== false || $count > 0) {
-                // Ne pas écraser une séquence déjà démarrée
-                $this->pdo->commit();
-                return;
+            if ($existing === false) {
+                if ($lastNumber === 0) {
+                    $this->pdo->commit();
+                    return;
+                }
+                $insert = $this->pdo->prepare(
+                    'INSERT INTO counters (doc_type, year, last_number) VALUES (:type, :year, :n)'
+                );
+                $insert->execute([
+                    'type' => $type->value,
+                    'year' => $year,
+                    'n' => $lastNumber,
+                ]);
+            } else {
+                $update = $this->pdo->prepare(
+                    'UPDATE counters SET last_number = :n WHERE doc_type = :type AND year = :year'
+                );
+                $update->execute([
+                    'n' => $lastNumber,
+                    'type' => $type->value,
+                    'year' => $year,
+                ]);
             }
-
-            if ($lastNumber === 0) {
-                $this->pdo->commit();
-                return;
-            }
-
-            $insert = $this->pdo->prepare(
-                'INSERT INTO counters (doc_type, year, last_number) VALUES (:type, :year, :n)'
-            );
-            $insert->execute([
-                'type' => $type->value,
-                'year' => $year,
-                'n' => $lastNumber,
-            ]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
