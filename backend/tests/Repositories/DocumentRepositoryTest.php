@@ -71,7 +71,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertSame(0, (int) $doc['lines'][0]['line_vat_cents']);
     }
 
-    public function testSendAssignsNumberAndLocks(): void
+    public function testSendAssignsNumberAndDocumentStaysEditable(): void
     {
         $id = $this->docs->create([
             'doc_type' => 'quote',
@@ -83,12 +83,24 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertMatchesRegularExpression('/^DEV-\d{4}-\d{4}$/', (string) $sent['number']);
         $this->assertNotNull($sent['sent_at']);
 
-        $this->expectException(RuntimeException::class);
         $this->docs->update($id, [
             'client_id' => $this->clientId,
-            'object' => 'Hack',
-            'lines' => $this->sampleLines(),
+            'object' => 'Chantier modifié',
+            'lines' => [
+                [
+                    'label' => 'Enduit',
+                    'quantity' => 2,
+                    'unit' => 'm2',
+                    'unit_price_ht_cents' => 1000,
+                ],
+            ],
         ]);
+        $doc = $this->docs->find($id);
+        $this->assertNotNull($doc);
+        $this->assertSame('sent', $doc['status']);
+        $this->assertSame($sent['number'], $doc['number']);
+        $this->assertSame('Chantier modifié', $doc['object']);
+        $this->assertSame(2000, (int) $doc['total_ht_cents']);
     }
 
     public function testCannotSendWithoutLines(): void

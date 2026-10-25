@@ -178,6 +178,89 @@ describe('DocumentEditPage', () => {
     expect(screen.getByText(/Total HT/)).toHaveTextContent(/25,00/)
   })
 
+  it('laisse éditer un devis déjà envoyé', async () => {
+    const client = {
+      id: 1,
+      name: 'M. Johan PASCAL',
+      address_line1: '56 chemin de la berche',
+      address_line2: '',
+      postal_code: '26790',
+      city: 'suze la rousse',
+      email: 'a@b.fr',
+      phone: '06',
+      vat_number: '',
+      notes: null,
+    }
+    const doc = {
+      id: 7,
+      doc_type: 'quote',
+      status: 'sent',
+      number: 'DEV-2026-0004',
+      client_id: 1,
+      source_document_id: null,
+      issue_date: '2026-10-25',
+      valid_until: null,
+      object: 'Chantier envoyé',
+      notes: '',
+      site_address_line1: '1 rue du projet',
+      site_address_line2: '',
+      site_postal_code: '26790',
+      site_city: 'suze la rousse',
+      vat_rate_bp: 2000,
+      deposit_ttc_cents: 0,
+      deduction_label: '',
+      deduction_ttc_cents: 0,
+      total_ht_cents: 1000,
+      total_vat_cents: 200,
+      total_ttc_cents: 1200,
+      created_at: '2026-10-25',
+      updated_at: '2026-10-25',
+      sent_at: '2026-10-25',
+      lines: [{ id: 1, label: 'Enduit', quantity: 1, unit: 'm²', unit_price_ht_cents: 1000 }],
+    }
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input)
+        const payload = url.includes('/documents/7')
+          ? doc
+          : url.match(/\/clients\/1/)
+            ? client
+            : url.includes('/clients')
+              ? { items: [client] }
+              : url.includes('/designations')
+                ? { items: [] }
+                : url.includes('/company')
+                  ? { vat_exempt: false }
+                  : {}
+        return { ok: true, status: 200, text: async () => JSON.stringify(payload) }
+      }),
+    )
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/7']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    const chantier = await screen.findByLabelText('Chantier')
+    expect(chantier).toBeEnabled()
+    expect(chantier).toHaveValue('Chantier envoyé')
+    expect(screen.getByRole('combobox', { name: /Client/ })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Désignation' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ajouter une ligne' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Télécharger le PDF' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Envoyer/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Supprimer le brouillon' })).not.toBeInTheDocument()
+  })
+
   it('affiche déduction et reste à payer sur une facture', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', mockFetch())

@@ -41,12 +41,12 @@ La conversion devis → facture copie les lignes, le chantier et le taux de TVA,
 ### Cycle de vie
 
 1. Création en `draft` — pas de numéro.
-2. Édition libre tant que `draft`.
-3. **Envoyer** : attribution du numéro (`DEV-YYYY-NNNN` / `FAC-YYYY-NNNN`, 4 chiffres), statut `sent`, PDF téléchargeable.
+2. Édition libre à tout moment, y compris après envoi, acceptation ou refus. L’enregistrement conserve le numéro et le statut.
+3. **Envoyer** : attribution du numéro (`DEV-YYYY-NNNN` / `FAC-YYYY-NNNN`, 4 chiffres), statut `sent`, PDF téléchargeable. Réservé aux brouillons.
 4. Devis `sent` → peut passer `accepted` ou `rejected`.
 5. Devis `accepted` → conversion en facture `draft` (copie des lignes + chantier, lien `source_document_id`).
 
-Les documents `sent` (et suivants) ne sont plus modifiables (lignes figées). Un nouveau brouillon peut être créé à partir d’une conversion.
+Seul un brouillon peut être supprimé. Un nouveau brouillon peut être créé à partir d’une conversion.
 
 ## Lignes
 

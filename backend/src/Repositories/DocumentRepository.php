@@ -125,10 +125,6 @@ final class DocumentRepository
     public function update(int $id, array $data): void
     {
         $doc = $this->require($id);
-        $status = DocumentStatus::from((string) $doc['status']);
-        if (!$status->isEditable()) {
-            throw new RuntimeException('Document non modifiable (déjà envoyé)');
-        }
 
         $clientId = (int) ($data['client_id'] ?? $doc['client_id']);
         $this->assertClient($clientId);

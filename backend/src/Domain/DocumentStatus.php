@@ -39,9 +39,4 @@ enum DocumentStatus: string
             );
         }
     }
-
-    public function isEditable(): bool
-    {
-        return $this === self::Draft;
-    }
 }

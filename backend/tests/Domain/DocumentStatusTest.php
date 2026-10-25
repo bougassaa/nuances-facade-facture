@@ -35,14 +35,6 @@ final class DocumentStatusTest extends TestCase
         DocumentStatus::assertAllowed(DocumentType::Invoice, DocumentStatus::Accepted);
     }
 
-    public function testOnlyDraftIsEditable(): void
-    {
-        $this->assertTrue(DocumentStatus::Draft->isEditable());
-        $this->assertFalse(DocumentStatus::Sent->isEditable());
-        $this->assertFalse(DocumentStatus::Accepted->isEditable());
-        $this->assertFalse(DocumentStatus::Rejected->isEditable());
-    }
-
     public function testLabelsFr(): void
     {
         $this->assertSame('Brouillon', DocumentStatus::Draft->labelFr(DocumentType::Quote));

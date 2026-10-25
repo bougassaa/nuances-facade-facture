@@ -132,11 +132,10 @@ export default function DocumentEditPage() {
   const [deductionLabel, setDeductionLabel] = useState('')
   const [deductionAmount, setDeductionAmount] = useState('0,00')
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
-  const [totals, setTotals] = useState({ ht: 0, vat: 0, ttc: 0 })
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const editable = status === 'draft'
+  const isDraft = status === 'draft'
   const effectiveVatRate = vatExempt ? 0 : vatRateBp
 
   useEffect(() => {
@@ -187,11 +186,6 @@ export default function DocumentEditPage() {
         setDeductionLabel(doc.deduction_label ?? '')
         setDeductionAmount(centsToEurosInput(doc.deduction_ttc_cents ?? 0))
         setLines(linesFromDoc(doc.lines))
-        setTotals({
-          ht: doc.total_ht_cents,
-          vat: doc.total_vat_cents,
-          ttc: doc.total_ttc_cents,
-        })
         const c = await api<Client>(`/clients/${doc.client_id}`)
         setClient(c)
       })
@@ -209,7 +203,7 @@ export default function DocumentEditPage() {
 
   const depositCents = useMemo(() => eurosToCents(depositAmount), [depositAmount])
   const deductionCents = useMemo(() => eurosToCents(deductionAmount), [deductionAmount])
-  const remainingCents = Math.max(0, (editable ? previewTotals.ttc : totals.ttc) - deductionCents)
+  const remainingCents = Math.max(0, previewTotals.ttc - deductionCents)
 
   function applyClientSite(c: Client | null) {
     if (!c) return
@@ -222,7 +216,7 @@ export default function DocumentEditPage() {
 
   function applyClientSelection(c: Client | null) {
     setClient(c)
-    if (!editable || !c) return
+    if (!c) return
     setObject(chantierFromClient(c))
     applyClientSite(c)
   }
@@ -265,11 +259,6 @@ export default function DocumentEditPage() {
         method: 'PUT',
         body: JSON.stringify(body),
       })
-      setTotals({
-        ht: updated.total_ht_cents,
-        vat: updated.total_vat_cents,
-        ttc: updated.total_ttc_cents,
-      })
       await refreshDesignations()
       return updated
     } catch (err) {
@@ -282,11 +271,9 @@ export default function DocumentEditPage() {
 
   async function onSend() {
     let docId = isNew ? null : Number(id)
-    if (editable) {
-      const saved = await save()
-      if (!saved) return
-      docId = saved.id
-    }
+    const saved = await save()
+    if (!saved) return
+    docId = saved.id
     if (!docId) return
     setBusy(true)
     try {
@@ -296,11 +283,6 @@ export default function DocumentEditPage() {
       })
       setStatus(sent.status)
       setNumber(sent.number)
-      setTotals({
-        ht: sent.total_ht_cents,
-        vat: sent.total_vat_cents,
-        ttc: sent.total_ttc_cents,
-      })
       await downloadPdf(sent.id, sent.number ?? undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
@@ -339,7 +321,7 @@ export default function DocumentEditPage() {
     }
   }
 
-  const displayTotals = editable ? previewTotals : totals
+  const displayTotals = previewTotals
 
   return (
     <Stack spacing={2} component="form" onSubmit={save}>
@@ -356,7 +338,6 @@ export default function DocumentEditPage() {
         getOptionLabel={(o) => o.name}
         value={client}
         onChange={(_, v) => applyClientSelection(v)}
-        disabled={!editable}
         renderInput={(params) => <TextField {...params} label="Client" required />}
       />
 
@@ -364,7 +345,6 @@ export default function DocumentEditPage() {
         label="Chantier"
         value={object}
         onChange={(e) => setObject(e.target.value)}
-        disabled={!editable}
         helperText="Prérempli au choix du client, modifiable"
       />
 
@@ -373,30 +353,26 @@ export default function DocumentEditPage() {
         label="Adresse"
         value={siteAddress1}
         onChange={(e) => setSiteAddress1(e.target.value)}
-        disabled={!editable}
       />
       <TextField
         label="Complément"
         value={siteAddress2}
         onChange={(e) => setSiteAddress2(e.target.value)}
-        disabled={!editable}
       />
       <Stack direction="row" spacing={1}>
         <TextField
           label="Code postal"
           value={sitePostal}
           onChange={(e) => setSitePostal(e.target.value)}
-          disabled={!editable}
           slotProps={keyboardSlot('numeric')}
         />
         <TextField
           label="Ville"
           value={siteCity}
           onChange={(e) => setSiteCity(e.target.value)}
-          disabled={!editable}
         />
       </Stack>
-      {editable && client && (
+      {client && (
         <Button variant="text" onClick={() => applyClientSite(client)}>
           Reprendre l’adresse du client
         </Button>
@@ -409,7 +385,6 @@ export default function DocumentEditPage() {
           slotProps={{ inputLabel: { shrink: true } }}
           value={validUntil}
           onChange={(e) => setValidUntil(e.target.value)}
-          disabled={!editable}
         />
       )}
 
@@ -431,7 +406,6 @@ export default function DocumentEditPage() {
                 }}
                 value={line.label}
                 inputValue={line.label}
-                disabled={!editable}
                 onInputChange={(_, value, reason) => {
                   if (reason === 'reset') return
                   const next = [...lines]
@@ -469,7 +443,6 @@ export default function DocumentEditPage() {
                   label="Qté"
                   mode="quantity"
                   value={line.quantity}
-                  disabled={!editable}
                   onChange={(quantity) => {
                     const next = [...lines]
                     next[index] = { ...line, quantity }
@@ -480,7 +453,6 @@ export default function DocumentEditPage() {
                   select
                   label="Unité"
                   value={line.unit}
-                  disabled={!editable}
                   onChange={(e) => {
                     const next = [...lines]
                     next[index] = { ...line, unit: e.target.value }
@@ -502,33 +474,28 @@ export default function DocumentEditPage() {
                   label="P.U. HT (€)"
                   mode="money"
                   value={line.unit_price}
-                  disabled={!editable}
                   onChange={(unit_price) => {
                     const next = [...lines]
                     next[index] = { ...line, unit_price }
                     setLines(next)
                   }}
                 />
-                {editable && (
-                  <IconButton
-                    aria-label="Supprimer la ligne"
-                    onClick={() => setLines(lines.filter((_, i) => i !== index))}
-                    disabled={lines.length === 1}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                )}
+                <IconButton
+                  aria-label="Supprimer la ligne"
+                  onClick={() => setLines(lines.filter((_, i) => i !== index))}
+                  disabled={lines.length === 1}
+                >
+                  <DeleteIcon />
+                </IconButton>
               </Stack>
             </Stack>
           </CardContent>
         </Card>
       ))}
 
-      {editable && (
-        <Button variant="outlined" onClick={() => setLines([...lines, emptyLine()])}>
-          Ajouter une ligne
-        </Button>
-      )}
+      <Button variant="outlined" onClick={() => setLines([...lines, emptyLine()])}>
+        Ajouter une ligne
+      </Button>
 
       <Divider />
 
@@ -539,7 +506,6 @@ export default function DocumentEditPage() {
               select
               label="TVA"
               value={vatRateBp}
-              disabled={!editable}
               onChange={(e) => setVatRateBp(Number(e.target.value))}
               sx={{ flex: 1 }}
             >
@@ -556,7 +522,6 @@ export default function DocumentEditPage() {
               mode="money"
               value={depositAmount}
               onChange={setDepositAmount}
-              disabled={!editable}
               sx={{ flex: 1 }}
             />
           )}
@@ -569,7 +534,6 @@ export default function DocumentEditPage() {
             label="Libellé de déduction"
             value={deductionLabel}
             onChange={(e) => setDeductionLabel(e.target.value)}
-            disabled={!editable}
             placeholder="Acompte fournitures"
           />
           <NumberField
@@ -577,7 +541,6 @@ export default function DocumentEditPage() {
             mode="money"
             value={deductionAmount}
             onChange={setDeductionAmount}
-            disabled={!editable}
             helperText="0 = pas de déduction sur le PDF"
           />
         </Stack>
@@ -589,7 +552,6 @@ export default function DocumentEditPage() {
         minRows={2}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        disabled={!editable}
       />
 
       <Divider />
@@ -610,19 +572,17 @@ export default function DocumentEditPage() {
         )}
       </Stack>
 
-      {editable && (
-        <Button type="submit" variant="contained" disabled={busy}>
-          Enregistrer
-        </Button>
-      )}
+      <Button type="submit" variant="contained" disabled={busy}>
+        Enregistrer
+      </Button>
 
-      {editable && (
+      {isDraft && (
         <Button variant="contained" color="secondary" disabled={busy} onClick={onSend}>
           Envoyer (numéro + PDF)
         </Button>
       )}
 
-      {!editable && (
+      {!isDraft && !isNew && (
         <Button
           variant="outlined"
           disabled={busy}
@@ -649,7 +609,7 @@ export default function DocumentEditPage() {
         </Button>
       )}
 
-      {editable && !isNew && (
+      {isDraft && !isNew && (
         <Button
           color="error"
           disabled={busy}
