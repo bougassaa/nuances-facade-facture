@@ -29,6 +29,7 @@ const company = {
   legal_quote_validity: null,
   legal_extra: null,
   has_logo: false,
+  has_signature: false,
   counters: { year: 2026, quote: 0, invoice: 0 },
   vat_rates: [],
 }
@@ -214,5 +215,71 @@ describe('SettingsPage designations', () => {
         ),
       ).toBe(true)
     })
+  })
+})
+
+describe('SettingsPage signature', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('envoie l’image puis permet de la retirer', async () => {
+    const user = userEvent.setup()
+    let current = { ...company, has_signature: false }
+
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url.includes('/company/signature') && method === 'POST') {
+        current = { ...current, has_signature: true }
+        return { ok: true, status: 200, text: async () => JSON.stringify(current) }
+      }
+      if (url.includes('/company/signature') && method === 'DELETE') {
+        current = { ...current, has_signature: false }
+        return { ok: true, status: 200, text: async () => JSON.stringify(current) }
+      }
+      if (url.includes('/company') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify(current) }
+      }
+      if (url.includes('/designations') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
+      }
+      return { ok: true, status: 200, text: async () => '{}' }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <SettingsPage />
+      </ThemeProvider>,
+    )
+
+    const input = await screen.findByLabelText('Fichier de signature', { hidden: true })
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'signature.png', {
+      type: 'image/png',
+    })
+    await user.upload(input, file)
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        (c) => callUrl(c).includes('/company/signature') && callMethod(c) === 'POST',
+      )
+      expect(post).toBeTruthy()
+      const body = (post![1] as RequestInit).body
+      expect(body).toBeInstanceOf(FormData)
+      expect((body as FormData).get('signature')).toBeInstanceOf(File)
+    })
+    expect(await screen.findByRole('img', { name: 'Signature' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retirer la signature' }))
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          (c) => callUrl(c).includes('/company/signature') && callMethod(c) === 'DELETE',
+        ),
+      ).toBe(true)
+    })
+    expect(screen.queryByRole('img', { name: 'Signature' })).not.toBeInTheDocument()
   })
 })

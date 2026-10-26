@@ -21,7 +21,7 @@ final class PdfTemplateTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->purgeBusinessData();
-        $this->pdo()->exec('UPDATE company SET vat_exempt = 0, legal_quote_validity = "Valable 3 mois", payment_terms = "Paiement à réception." WHERE id = 1');
+        $this->pdo()->exec('UPDATE company SET vat_exempt = 0, legal_quote_validity = "Valable 3 mois", payment_terms = "Paiement à réception.", signature_path = NULL WHERE id = 1');
         $clients = new ClientRepository($this->pdo());
         $this->clientId = $clients->create([
             'name' => 'M. Test Client',
@@ -72,6 +72,45 @@ final class PdfTemplateTest extends IntegrationTestCase
         $this->assertStringContainsString('Valable 3 mois', $html);
         $this->assertStringContainsString('TVA à 10 %', $html);
         $this->assertStringNotContainsString('>TVA</th>', $html);
+        $this->assertStringContainsString('Le client', $html);
+        $this->assertStringNotContainsString('class="signature-img"', $html);
+    }
+
+    public function testQuoteHtmlEmbedsCompanySignature(): void
+    {
+        $dir = sys_get_temp_dir() . '/nf-sig-' . uniqid('', true);
+        mkdir($dir);
+        $png = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true
+        );
+        file_put_contents($dir . '/signature.png', $png);
+        $this->pdo()->exec("UPDATE company SET name = 'Nuances Façade', signature_path = 'signature.png' WHERE id = 1");
+        $pdf = new PdfService(
+            $this->pdo(),
+            dirname(__DIR__, 2) . '/templates/pdf',
+            dirname(__DIR__, 2) . '/storage/logos',
+            $dir
+        );
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'lines' => [
+                [
+                    'label' => 'Enduit',
+                    'quantity' => 1,
+                    'unit' => 'u',
+                    'unit_price_ht_cents' => 10000,
+                ],
+            ],
+        ]);
+        $html = $pdf->renderHtml($id);
+        $this->assertStringContainsString('Nuances Façade', $html);
+        $this->assertStringContainsString('class="signature-img"', $html);
+        $this->assertStringContainsString('data:image/png;base64,', $html);
+        $this->assertStringContainsString('Le client', $html);
+        $this->assertStringContainsString('Bon pour travaux', $html);
+        $this->pdo()->exec('UPDATE company SET signature_path = NULL WHERE id = 1');
     }
 
     public function testInvoiceHtmlContainsDeductionAndRemaining(): void

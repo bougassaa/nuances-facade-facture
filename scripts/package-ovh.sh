@@ -18,7 +18,7 @@ composer install --no-dev --optimize-autoloader --no-interaction
 
 echo "==> Assemble package"
 rm -rf "$OUT"
-mkdir -p "$PUBLIC_OUT/api" "$APP_OUT/public" "$APP_OUT/storage/logos" "$APP_OUT/storage/sessions"
+mkdir -p "$PUBLIC_OUT/api" "$APP_OUT/public" "$APP_OUT/storage/logos" "$APP_OUT/storage/signatures" "$APP_OUT/storage/sessions"
 
 # SPA
 cp -R "$ROOT/frontend/dist/." "$PUBLIC_OUT/"
@@ -39,11 +39,13 @@ cp "$ROOT/backend/config/config.example.php" "$APP_OUT/config/config.example.php
 cp "$ROOT/backend/bootstrap.php" "$APP_OUT/bootstrap.php"
 cp "$ROOT/backend/public/index.php" "$APP_OUT/public/index.php"
 cp "$ROOT/backend/storage/logos/.gitkeep" "$APP_OUT/storage/logos/.gitkeep"
+cp "$ROOT/backend/storage/signatures/.gitkeep" "$APP_OUT/storage/signatures/.gitkeep"
 cp "$ROOT/backend/storage/sessions/.gitkeep" "$APP_OUT/storage/sessions/.gitkeep"
 cp "$ROOT/backend/sql/001_init.sql" "$APP_OUT/001_init.sql"
 cp "$ROOT/backend/sql/002_document_layout.sql" "$APP_OUT/002_document_layout.sql"
 cp "$ROOT/backend/sql/003_document_vat_deposit.sql" "$APP_OUT/003_document_vat_deposit.sql"
 cp "$ROOT/backend/sql/004_line_designations.sql" "$APP_OUT/004_line_designations.sql"
+cp "$ROOT/backend/sql/005_company_signature.sql" "$APP_OUT/005_company_signature.sql"
 
 # Config prod (exemple) — à copier en config.local.php sur le serveur
 cat > "$APP_OUT/config/config.example.php" <<'PHP'
@@ -68,6 +70,7 @@ return [
     ],
     'paths' => [
         'logos' => __DIR__ . '/../storage/logos',
+        'signatures' => __DIR__ . '/../storage/signatures',
     ],
 ];
 PHP

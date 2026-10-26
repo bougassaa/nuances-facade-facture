@@ -12,6 +12,8 @@ frontend/dist/
 dist-ovh/
 backend/storage/logos/*
 !backend/storage/logos/.gitkeep
+backend/storage/signatures/*
+!backend/storage/signatures/.gitkeep
 backend/storage/sessions/*
 !backend/storage/sessions/.gitkeep
 

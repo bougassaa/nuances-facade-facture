@@ -24,5 +24,6 @@ return [
     ],
     'paths' => [
         'logos' => __DIR__ . '/../storage/logos',
+        'signatures' => __DIR__ . '/../storage/signatures',
     ],
 ];

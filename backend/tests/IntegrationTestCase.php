@@ -18,6 +18,18 @@ abstract class IntegrationTestCase extends TestCase
         if (self::$pdo === null) {
             self::$pdo = self::connectOrSkip();
         }
+        $this->ensureCompanySignatureColumn();
+    }
+
+    private function ensureCompanySignatureColumn(): void
+    {
+        $pdo = $this->pdo();
+        $exists = $pdo->query("SHOW COLUMNS FROM company LIKE 'signature_path'")->fetch();
+        if ($exists === false) {
+            $pdo->exec(
+                'ALTER TABLE company ADD COLUMN signature_path VARCHAR(255) NULL DEFAULT NULL AFTER logo_path'
+            );
+        }
     }
 
     protected function pdo(): PDO

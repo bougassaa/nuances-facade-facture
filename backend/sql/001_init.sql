@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS company (
   legal_form VARCHAR(40) NOT NULL DEFAULT 'EI',
   payment_terms TEXT NULL,
   logo_path VARCHAR(255) NULL DEFAULT NULL,
+  signature_path VARCHAR(255) NULL DEFAULT NULL,
   vat_exempt TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Franchise en base art. 293 B',
   legal_decennale TEXT NULL,
   legal_late_penalties TEXT NULL,

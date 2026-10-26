@@ -15,6 +15,7 @@ facture.nuances-facade.fr
     ├── vendor/
     ├── config/
     ├── storage/logos/
+    ├── storage/signatures/
     ├── storage/sessions/    # fichiers de session PHP (1 an)
     └── templates/pdf/
 ```
@@ -47,13 +48,13 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 
 - Template HTML PHP → dompdf 3.x, pied de page via callback canvas (pagination + mentions légales).
 - Généré à la demande (téléchargement) et après action « Envoyer ».
-- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql`, `004_line_designations.sql` (bases déjà en prod).
+- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql`, `004_line_designations.sql`, `005_company_signature.sql` (bases déjà en prod).
 
 ## Sécurité
 
 - Mot de passe : `password_hash` / `password_verify` (bcrypt).
 - CSRF : token session pour mutations (header `X-CSRF-Token`).
-- Upload logo : types image limités, hors web, servi via endpoint authentifié si besoin ; sur PDF, chemin fichier local.
+- Upload logo et signature : types image limités (PNG, JPEG, WebP, GIF), hors web, servis via endpoint authentifié ; sur PDF, image embarquée. La signature est recadrée (marges blanches) à l’enregistrement.
 
 ## Tests
 

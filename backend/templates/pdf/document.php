@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Variables: $document, $company, $client, $lines, $logoDataUri,
+ * Variables: $document, $company, $client, $lines, $logoDataUri, $signatureDataUri,
  *            $depositAmountCents, $remainingDueCents
  */
 
@@ -65,6 +65,7 @@ $deductionLabel = trim((string) ($document['deduction_label'] ?? ''));
 $hasSite = trim((string) ($document['site_address_line1'] ?? '')) !== ''
     || trim((string) ($document['site_city'] ?? '')) !== '';
 $object = trim((string) ($document['object'] ?? ''));
+$signatureDataUri = $signatureDataUri ?? null;
 $paymentTerms = trim((string) ($company['payment_terms'] ?? ''));
 $quoteValidity = trim((string) ($company['legal_quote_validity'] ?? ''));
 
@@ -128,6 +129,8 @@ if (!empty($client['phone'])) {
     padding: 14px;
   }
   .signature-box h4 { margin: 0 0 10px; font-size: 11px; }
+  .signature-img-wrap { text-align: center; margin-top: 8px; }
+  .signature-img { display: inline-block; max-width: 220px; max-height: 100px; }
 </style>
 </head>
 <body>
@@ -331,6 +334,11 @@ if (!empty($client['phone'])) {
       <td>
         <div class="frame">
           <h4><?= htmlspecialchars((string) ($company['name'] ?? 'Nuances Façade'), ENT_QUOTES) ?></h4>
+          <?php if (!empty($signatureDataUri)): ?>
+            <div class="signature-img-wrap">
+              <img class="signature-img" src="<?= htmlspecialchars((string) $signatureDataUri, ENT_QUOTES) ?>" alt="Signature">
+            </div>
+          <?php endif; ?>
         </div>
       </td>
     </tr>

@@ -9,7 +9,9 @@
 
 ## Entreprise (`company`)
 
-Champs : raison sociale, adresse, téléphone, email, site web, forme juridique (ex. EI), SIRET, n° TVA, logo, IBAN/BIC (impression PDF), conditions de paiement (factures), franchise en base TVA (art. 293 B), mentions légales (décennale / assurance pied de page, pénalités, indemnité 40 €, validité devis).
+Champs : raison sociale, adresse, téléphone, email, site web, forme juridique (ex. EI), SIRET, n° TVA, logo, signature (image), IBAN/BIC (impression PDF), conditions de paiement (factures), franchise en base TVA (art. 293 B), mentions légales (décennale / assurance pied de page, pénalités, indemnité 40 €, validité devis).
+
+La signature, si elle est enregistrée dans les réglages, est apposée automatiquement dans le cadre entreprise de la page « Bon pour travaux » des devis. Le cadre client reste vide, à signer à la main.
 
 Taux de TVA disponibles : 20 %, 10 %, 5,5 %, 0 %.
 
@@ -69,7 +71,7 @@ Les réglages entreprise permettent de fixer le dernier numéro émis pour l’a
 
 ## PDF
 
-Mise en page calquée sur les documents artisan : en-tête entreprise / client, chantier, tableau numéroté (sans TVA par ligne), TVA unique au total, acompte ou reste à payer, pied de page (forme juridique, SIRET, assurance, IBAN, pagination). Devis : page signature « Bon pour travaux ».
+Mise en page calquée sur les documents artisan : en-tête entreprise / client, chantier, tableau numéroté (sans TVA par ligne), TVA unique au total, acompte ou reste à payer, pied de page (forme juridique, SIRET, assurance, IBAN, pagination). Devis : page signature « Bon pour travaux », cadre client à gauche et cadre entreprise à droite (nom + image de signature si elle est configurée).
 
 ## Libellés UI (français)
 

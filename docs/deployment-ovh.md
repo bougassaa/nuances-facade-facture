@@ -5,7 +5,7 @@
 1. Hébergement web OVH (offre classique) avec PHP 8.4.
 2. Domaine `nuances-facade.fr` déjà sur l’hébergement (`www/`).
 3. Multisite : ajouter le sous-domaine `facture.nuances-facade.fr` avec racine `facture/` et SSL ([guide multisite](https://docs.ovhcloud.com/en/guides/web-cloud/web-hosting/multisites-configure-multisite.md)).
-4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql`, puis `003_document_vat_deposit.sql`, puis `004_line_designations.sql`.
+4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql`, puis `003_document_vat_deposit.sql`, puis `004_line_designations.sql`, puis `005_company_signature.sql`.
 
 ## Arborescence FTP / SFTP
 
@@ -26,6 +26,7 @@
     │   ├── config.example.php
     │   └── config.local.php   # secrets, ne pas versionner
     ├── storage/logos/
+    ├── storage/signatures/
     ├── storage/sessions/  # sessions PHP, ne pas écraser au déploiement
     └── templates/pdf/
 ```
@@ -57,7 +58,7 @@ Secrets du dépôt GitHub (mêmes identifiants que [nuances-facade](https://gith
 - `FTP_USERNAME`
 - `FTP_PASSWORD`
 
-`facture_app/config/config.local.php`, `facture_app/storage/logos/` et `facture_app/storage/sessions/` ne sont ni envoyés ni supprimés. Après le premier déploiement, créer `config.local.php` sur le serveur et importer le SQL si la base n’existe pas encore.
+`facture_app/config/config.local.php`, `facture_app/storage/logos/`, `facture_app/storage/signatures/` et `facture_app/storage/sessions/` ne sont ni envoyés ni supprimés. Après le premier déploiement, créer `config.local.php` sur le serveur et importer le SQL si la base n’existe pas encore.
 
 ## Configuration PHP
 

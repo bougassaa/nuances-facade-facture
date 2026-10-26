@@ -26,6 +26,7 @@
 
 - [x] Déploiement FTP OVH via GitHub Actions (push sur `main`)
 - [x] PDF aligné documents artisan (chantier, pied de page, signature devis)
+- [x] Signature entreprise (image dans les réglages, apposée sur les devis)
 - [x] Mention acompte devis (%) et déduction / reste à payer facture (sans suivi de règlement)
 - [x] Numérotation à 4 chiffres + seed compteur
 

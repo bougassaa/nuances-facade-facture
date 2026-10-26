@@ -10,11 +10,15 @@ use PDO;
 
 final class PdfService
 {
+    private readonly string $signaturesDir;
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly string $templatesDir,
         private readonly string $logosDir,
+        ?string $signaturesDir = null,
     ) {
+        $this->signaturesDir = $signaturesDir ?? dirname($this->logosDir) . '/signatures';
     }
 
     public function renderDocument(int $documentId): string
@@ -51,14 +55,8 @@ final class PdfService
         $client = $this->loadClient((int) $doc['client_id']);
         $lines = $this->loadLines($documentId);
 
-        $logoDataUri = null;
-        if (!empty($company['logo_path'])) {
-            $full = $this->logosDir . '/' . basename((string) $company['logo_path']);
-            if (is_file($full)) {
-                $mime = mime_content_type($full) ?: 'image/png';
-                $logoDataUri = 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($full));
-            }
-        }
+        $logoDataUri = $this->imageDataUri($this->logosDir, $company['logo_path'] ?? null);
+        $signatureDataUri = $this->imageDataUri($this->signaturesDir, $company['signature_path'] ?? null);
 
         $calculator = new TotalsCalculator();
         $depositAmountCents = (int) ($doc['deposit_ttc_cents'] ?? 0);
@@ -128,6 +126,19 @@ final class PdfService
             $pdf->text(42, $y + 12, $headerLine, $font, $size);
             $pdf->text(42, $y + 22, $legalLine, $font, $size);
         });
+    }
+
+    private function imageDataUri(string $dir, mixed $relative): ?string
+    {
+        if (!is_string($relative) || $relative === '') {
+            return null;
+        }
+        $full = $dir . '/' . basename($relative);
+        if (!is_file($full)) {
+            return null;
+        }
+        $mime = mime_content_type($full) ?: 'image/png';
+        return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($full));
     }
 
     private function truncate(string $text, int $max): string

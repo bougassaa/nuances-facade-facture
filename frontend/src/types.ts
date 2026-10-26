@@ -81,6 +81,7 @@ export type Company = {
   legal_quote_validity: string | null
   legal_extra: string | null
   has_logo: boolean
+  has_signature: boolean
   counters?: { year: number; quote: number; invoice: number }
   vat_rates: { id: number; rate_bp: number; label: string; is_default: number }[]
 }

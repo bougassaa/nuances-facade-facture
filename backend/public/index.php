@@ -26,9 +26,10 @@ $auth = new SessionAuth($pdo);
 $clients = new ClientRepository($pdo);
 $designations = new LineDesignationRepository($pdo);
 $numbers = new DocumentNumberService($pdo);
-$company = new CompanyRepository($pdo, $config['paths']['logos'], $numbers);
+$signaturesDir = $config['paths']['signatures'] ?? ($root . '/storage/signatures');
+$company = new CompanyRepository($pdo, $config['paths']['logos'], $numbers, $signaturesDir);
 $docs = new DocumentRepository($pdo, new TotalsCalculator(), $numbers, $designations);
-$pdf = new PdfService($pdo, $root . '/templates/pdf', $config['paths']['logos']);
+$pdf = new PdfService($pdo, $root . '/templates/pdf', $config['paths']['logos'], $signaturesDir);
 
 header('X-Content-Type-Options: nosniff');
 
@@ -141,6 +142,45 @@ $router->post('/company/logo', static function (Request $req) use ($mutate, $com
     } catch (Throwable $e) {
         Response::error($e->getMessage(), 400);
     }
+});
+
+$router->post('/company/signature', static function (Request $req) use ($mutate, $company) {
+    if (!$mutate($req)) {
+        return;
+    }
+    try {
+        if (!isset($req->files['signature'])) {
+            Response::error('Fichier signature manquant');
+            return;
+        }
+        $company->saveSignature($req->files['signature']);
+        Response::json($company->get());
+    } catch (Throwable $e) {
+        Response::error($e->getMessage(), 400);
+    }
+});
+
+$router->delete('/company/signature', static function (Request $req) use ($mutate, $company) {
+    if (!$mutate($req)) {
+        return;
+    }
+    $company->deleteSignature();
+    Response::json($company->get());
+});
+
+$router->get('/company/signature', static function () use ($auth, $company) {
+    if ($auth->requireUser() === null) {
+        return;
+    }
+    $path = $company->signatureAbsolutePath();
+    if ($path === null) {
+        Response::error('Pas de signature', 404);
+        return;
+    }
+    $mime = mime_content_type($path) ?: 'image/png';
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: private, no-cache');
+    readfile($path);
 });
 
 $router->get('/company/logo', static function () use ($auth, $company) {

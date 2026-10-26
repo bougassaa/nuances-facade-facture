@@ -21,7 +21,7 @@ cd backend && composer install && ./vendor/bin/phpunit
 | Calculs | `tests/Services/Totals*` | centimes, arrondi ligne, TVA, franchise, acompte, reste à payer |
 | Numérotation | `tests/Services/DocumentNumber*` | séquence sans trou, préfixes DEV/FAC, 4 chiffres, réglage du dernier numéro (y compris si la séquence a déjà commencé) |
 | Repos | `tests/Repositories/*` | CRUD, send, convert, chantier, déduction, désignations, verrous (MySQL) |
-| PDF | `tests/Services/PdfTemplate*` | HTML acompte, signature, reste à payer |
+| PDF | `tests/Services/PdfTemplate*` | HTML acompte, signature devis (cadre client / image entreprise), reste à payer |
 | HTTP | `tests/Http/*` | routage, matching des params |
 | Auth | `tests/Auth/*` | hash mot de passe, CSRF, setup unique, durée session 1 an (`#[RunInSeparateProcess]`) |
 

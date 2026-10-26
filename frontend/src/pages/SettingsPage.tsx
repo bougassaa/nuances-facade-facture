@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [designationError, setDesignationError] = useState<string | null>(null)
   const [designationOk, setDesignationOk] = useState<string | null>(null)
   const [designationBusy, setDesignationBusy] = useState(false)
+  const [signatureRev, setSignatureRev] = useState(0)
 
   useEffect(() => {
     api<Company>('/company')
@@ -98,6 +99,38 @@ export default function SettingsPage() {
       const updated = await api<Company>('/company/logo', { method: 'POST', body })
       setForm(updated)
       setOk('Logo mis à jour')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSignature(file: File | null) {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      const body = new FormData()
+      body.append('signature', file)
+      const updated = await api<Company>('/company/signature', { method: 'POST', body })
+      setForm(updated)
+      setSignatureRev((n) => n + 1)
+      setOk('Signature mise à jour')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onRemoveSignature() {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api<Company>('/company/signature', { method: 'DELETE' })
+      setForm(updated)
+      setOk('Signature retirée')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {
@@ -342,6 +375,39 @@ export default function SettingsPage() {
               />
             </Button>
 
+            <Typography variant="subtitle1">Signature</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Apposée automatiquement dans le cadre de l’entreprise, sur la page de signature des
+              devis.
+            </Typography>
+            {form.has_signature && <BoxSignature rev={signatureRev} />}
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" component="label" disabled={busy}>
+                Choisir une signature
+                <input
+                  type="file"
+                  hidden
+                  aria-label="Fichier de signature"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    onSignature(e.target.files?.[0] ?? null)
+                    e.target.value = ''
+                  }}
+                />
+              </Button>
+              {form.has_signature && (
+                <Button
+                  type="button"
+                  variant="outlined"
+                  color="error"
+                  disabled={busy}
+                  onClick={onRemoveSignature}
+                >
+                  Retirer la signature
+                </Button>
+              )}
+            </Stack>
+
             <Button type="submit" variant="contained" disabled={busy}>
               Enregistrer
             </Button>
@@ -424,6 +490,17 @@ function BoxLogo() {
       src="/api/company/logo"
       alt="Logo"
       sx={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain' }}
+    />
+  )
+}
+
+function BoxSignature({ rev }: { rev: number }) {
+  return (
+    <Box
+      component="img"
+      src={`/api/company/signature?v=${rev}`}
+      alt="Signature"
+      sx={{ maxWidth: 220, maxHeight: 90, objectFit: 'contain', bgcolor: 'grey.100', p: 1 }}
     />
   )
 }
