@@ -255,7 +255,7 @@ describe('SettingsPage signature', () => {
       </ThemeProvider>,
     )
 
-    const input = await screen.findByLabelText('Fichier de signature', { hidden: true })
+    const input = await screen.findByLabelText('Fichier de signature')
     const file = new File([new Uint8Array([137, 80, 78, 71])], 'signature.png', {
       type: 'image/png',
     })
