@@ -18,10 +18,10 @@ cd backend && composer install && ./vendor/bin/phpunit
 | Zone | Fichiers typiques | À tester |
 |------|-------------------|----------|
 | Domaine | `tests/Domain/*` | enums, transitions de statut autorisées / refusées |
-| Calculs | `tests/Services/Totals*` | centimes, arrondi ligne, TVA, franchise, acompte, reste à payer |
+| Calculs | `tests/TotalsCalculatorTest.php` | centimes, arrondi ligne, TVA, franchise, acompte (% du TTC), reste à payer |
 | Numérotation | `tests/Services/DocumentNumber*` | séquence sans trou, préfixes DEV/FAC, 4 chiffres, réglage du dernier numéro (y compris si la séquence a déjà commencé) |
-| Repos | `tests/Repositories/*` | CRUD, send, convert, chantier, déduction, désignations, verrous (MySQL) |
-| PDF | `tests/Services/PdfTemplate*` | HTML acompte, signature devis (cadre client / image entreprise), reste à payer |
+| Repos | `tests/Repositories/*` | CRUD, send, convert (acompte → déduction), chantier, acompte %, déduction, désignations, réglages devis, verrous (MySQL) |
+| PDF | `tests/Services/PdfTemplate*`, `tests/Services/PdfFooterTest.php` | HTML acompte (« 30 %, soit … »), « Valable N mois », colonne TVA, adresse du projet, objet, signature devis (cadre client / image entreprise), reste à payer ; textes du pied de page |
 | HTTP | `tests/Http/*` | routage, matching des params |
 | Auth | `tests/Auth/*` | hash mot de passe, CSRF, setup unique, durée session 1 an (`#[RunInSeparateProcess]`) |
 

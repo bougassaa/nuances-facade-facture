@@ -74,6 +74,17 @@ final class TotalsCalculatorTest extends TestCase
         $this->assertSame(0, $calc->remainingDueCents(100, 200));
     }
 
+    public function testDepositCentsIsPercentOfTtcRoundedToTheCent(): void
+    {
+        $calc = new TotalsCalculator();
+        // Devis DEV-2026-0141 : 30 % de 16 472,50 € = 4 941,75 €
+        $this->assertSame(494175, $calc->depositCents(1647250, 30));
+        // 30 % de 0,05 € = 0,015 € → 0,02 €
+        $this->assertSame(2, $calc->depositCents(5, 30));
+        $this->assertSame(0, $calc->depositCents(1647250, 0));
+        $this->assertSame(1647250, $calc->depositCents(1647250, 100));
+    }
+
     public function testFractionalQuantityRoundsPerLine(): void
     {
         // 1.333 * 100 = 133.3 → 133

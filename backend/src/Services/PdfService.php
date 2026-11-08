@@ -29,7 +29,7 @@ final class PdfService
 
         $options = new Options();
         $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('defaultFont', 'Helvetica');
         $options->setChroot([$this->templatesDir, $this->logosDir]);
 
         $dompdf = new Dompdf($options);
@@ -71,61 +71,109 @@ final class PdfService
         return (string) ob_get_clean();
     }
 
+    /**
+     * Textes du pied de page (coordonnées, puis mentions légales), avant retour à la ligne.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function footerTexts(array $company): array
+    {
+        $address = array_values(array_filter([
+            trim((string) ($company['address_line1'] ?? '')),
+            trim((string) ($company['address_line2'] ?? '')),
+            trim(($company['postal_code'] ?? '') . ' ' . ($company['city'] ?? '')),
+        ], static fn (string $part): bool => $part !== ''));
+        $address[] = 'France';
+
+        $contact = [trim((string) ($company['name'] ?? '')) . ' — ' . implode(', ', $address)];
+        if (!empty($company['phone'])) {
+            $contact[] = 'Téléphone : ' . $company['phone'];
+        }
+        if (!empty($company['email'])) {
+            $contact[] = 'e-mail : ' . $company['email'];
+        }
+
+        $legal = [trim((string) ($company['legal_form'] ?? 'EI')) ?: 'EI'];
+        if (!empty($company['siret'])) {
+            $legal[] = 'SIRET : ' . $company['siret'];
+        }
+        if (!empty($company['legal_decennale'])) {
+            $legal[] = 'Assurance : ' . preg_replace('/\s+/', ' ', trim((string) $company['legal_decennale']));
+        }
+        if (!empty($company['iban'])) {
+            $legal[] = 'IBAN : ' . $company['iban'];
+        }
+
+        return [implode(' — ', $contact), implode(' — ', $legal)];
+    }
+
+    /** Pied de page centré sous un filet, pagination à droite ; numéro en haut à droite dès la page 2. */
     private function addFooter(Dompdf $dompdf, array $company, string $number): void
     {
         $canvas = $dompdf->getCanvas();
-        $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
-        $legalForm = trim((string) ($company['legal_form'] ?? 'EI')) ?: 'EI';
-        $parts = [$legalForm];
-        if (!empty($company['siret'])) {
-            $parts[] = 'SIRET : ' . $company['siret'];
-        }
-        if (!empty($company['legal_decennale'])) {
-            $assurance = preg_replace('/\s+/', ' ', trim((string) $company['legal_decennale']));
-            $parts[] = 'Assurance : ' . $assurance;
-        }
-        if (!empty($company['iban'])) {
-            $parts[] = 'IBAN : ' . $company['iban'];
-        }
-        $legalLine = $this->truncate(implode(' — ', $parts), 118);
+        $metrics = $dompdf->getFontMetrics();
+        $font = $metrics->getFont('Helvetica');
+        $size = 7.5;
+        $maxWidth = $canvas->get_width() - 2 * 80;
 
-        $addressBits = array_filter([
-            $company['address_line1'] ?? '',
-            trim(($company['postal_code'] ?? '') . ' ' . ($company['city'] ?? '')),
-            'France',
-        ]);
-        $contactBits = [];
-        if (!empty($company['phone'])) {
-            $contactBits[] = 'Téléphone : ' . $company['phone'];
+        $lines = [];
+        foreach (self::footerTexts($company) as $text) {
+            foreach ($this->wrap($text, $maxWidth, static fn (string $t): float => $metrics->getTextWidth($t, $font, $size)) as $line) {
+                $lines[] = [$line, $metrics->getTextWidth($line, $font, $size)];
+            }
         }
-        if (!empty($company['email'])) {
-            $contactBits[] = 'e-mail : ' . $company['email'];
-        }
-        $headerLine = trim((string) ($company['name'] ?? '')) . ' — '
-            . implode(', ', $addressBits);
-        if ($contactBits !== []) {
-            $headerLine .= ' — ' . implode(' — ', $contactBits);
-        }
-        $headerLine = $this->truncate($headerLine, 118);
+        $numberWidth = $number !== '' ? $metrics->getTextWidth($number, $font, 9.0) : 0.0;
 
         $canvas->page_script(static function (
             int $pageNumber,
             int $pageCount,
             $pdf,
             $fontMetrics
-        ) use ($font, $headerLine, $legalLine, $number): void {
+        ) use ($font, $size, $lines, $number, $numberWidth): void {
             $w = $pdf->get_width();
             $h = $pdf->get_height();
-            $size = 7.0;
-            $y = $h - 48;
+            $grey = [0.33, 0.33, 0.33];
+            $top = $h - 56;
 
-            $pdf->text(42, $y, 'Page ' . $pageNumber . ' / ' . $pageCount, $font, $size);
-            if ($number !== '' && $pageNumber > 1) {
-                $pdf->text($w - 120, 28, $number, $font, $size);
+            $pdf->line(18, $top, $w - 18, $top, [0.75, 0.75, 0.75], 0.6);
+
+            $page = 'Page ' . $pageNumber . ' / ' . $pageCount;
+            $pageWidth = $fontMetrics->getTextWidth($page, $font, $size + 0.5);
+            $pdf->text($w - 18 - $pageWidth, $top + 7, $page, $font, $size + 0.5, $grey);
+
+            foreach ($lines as $i => [$text, $width]) {
+                $pdf->text(($w - $width) / 2, $top + 7 + $i * 10.5, $text, $font, $size, $grey);
             }
-            $pdf->text(42, $y + 12, $headerLine, $font, $size);
-            $pdf->text(42, $y + 22, $legalLine, $font, $size);
+
+            if ($number !== '' && $pageNumber > 1) {
+                $pdf->text($w - 18 - $numberWidth, 12, $number, $font, 9.0, $grey);
+            }
         });
+    }
+
+    /**
+     * Retour à la ligne mot à mot selon une largeur en points.
+     *
+     * @param callable(string): float $measure
+     * @return list<string>
+     */
+    private function wrap(string $text, float $maxWidth, callable $measure): array
+    {
+        $lines = [];
+        $current = '';
+        foreach (preg_split('/ /', $text) ?: [] as $word) {
+            $candidate = $current === '' ? $word : $current . ' ' . $word;
+            if ($current !== '' && $measure($candidate) > $maxWidth) {
+                $lines[] = $current;
+                $current = $word;
+            } else {
+                $current = $candidate;
+            }
+        }
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+        return $lines;
     }
 
     private function imageDataUri(string $dir, mixed $relative): ?string
@@ -139,14 +187,6 @@ final class PdfService
         }
         $mime = mime_content_type($full) ?: 'image/png';
         return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($full));
-    }
-
-    private function truncate(string $text, int $max): string
-    {
-        if (mb_strlen($text) <= $max) {
-            return $text;
-        }
-        return mb_substr($text, 0, $max - 1) . '…';
     }
 
     private function loadDocument(int $id): array

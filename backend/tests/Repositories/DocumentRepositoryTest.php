@@ -21,7 +21,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->purgeBusinessData();
-        $this->pdo()->exec('UPDATE company SET vat_exempt = 0 WHERE id = 1');
+        $this->pdo()->exec('UPDATE company SET vat_exempt = 0, quote_deposit_percent = 30 WHERE id = 1');
         $clients = new ClientRepository($this->pdo());
         $this->clientId = $clients->create(['name' => 'Client Test Docs']);
         $this->docs = new DocumentRepository(
@@ -123,7 +123,7 @@ final class DocumentRepositoryTest extends IntegrationTestCase
             'site_address_line1' => '1 rue du Projet',
             'site_postal_code' => '26100',
             'site_city' => 'Romans',
-            'deposit_ttc_cents' => 20000,
+            'deposit_percent' => 30,
             'lines' => $this->sampleLines(),
         ]);
         $this->docs->send($id);
@@ -142,8 +142,30 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->assertSame('1 rue du Projet', $invoice['site_address_line1']);
         $this->assertSame('26100', $invoice['site_postal_code']);
         $this->assertSame(2000, (int) $invoice['vat_rate_bp']);
+        $this->assertSame(0, (int) $invoice['deposit_percent']);
         $this->assertSame(0, (int) $invoice['deposit_ttc_cents']);
+        // L’acompte du devis (30 % de 720,00 €) devient la déduction de la facture.
+        $this->assertSame('Acompte fournitures', $invoice['deduction_label']);
+        $this->assertSame(21600, (int) $invoice['deduction_ttc_cents']);
+        $this->assertSame(50400, (int) $invoice['remaining_due_cents']);
+    }
+
+    public function testConvertQuoteWithoutDepositLeavesNoDeduction(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_percent' => 0,
+            'lines' => $this->sampleLines(),
+        ]);
+        $this->docs->send($id);
+        $this->docs->setQuoteStatus($id, DocumentStatus::Accepted);
+
+        $invoice = $this->docs->find($this->docs->convertToInvoice($id));
+        $this->assertNotNull($invoice);
+        $this->assertSame('', $invoice['deduction_label']);
         $this->assertSame(0, (int) $invoice['deduction_ttc_cents']);
+        $this->assertSame(72000, (int) $invoice['remaining_due_cents']);
     }
 
     public function testConvertRequiresAcceptedQuote(): void
@@ -192,19 +214,67 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         $this->docs->setQuoteStatus($id, DocumentStatus::Accepted);
     }
 
-    public function testQuoteDepositPersisted(): void
+    public function testQuoteDepositDefaultsToCompanyPercent(): void
     {
         $id = $this->docs->create([
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
             'object' => 'Chantier Acompte',
-            'deposit_ttc_cents' => 20000,
             'lines' => $this->sampleLines(),
         ]);
         $doc = $this->docs->find($id);
         $this->assertNotNull($doc);
-        $this->assertSame(20000, (int) $doc['deposit_ttc_cents']);
+        $this->assertSame(30, (int) $doc['deposit_percent']);
         $this->assertSame(72000, (int) $doc['total_ttc_cents']);
+        $this->assertSame(21600, (int) $doc['deposit_ttc_cents']);
+    }
+
+    public function testQuoteDepositAmountIsComputedFromPercentAndFollowsLines(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_percent' => 25,
+            'deposit_ttc_cents' => 999999,
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertNotNull($doc);
+        $this->assertSame(25, (int) $doc['deposit_percent']);
+        $this->assertSame(18000, (int) $doc['deposit_ttc_cents']);
+
+        // Une seule ligne restante : 10 × 50,00 € HT = 500,00 € → 600,00 € TTC
+        $this->docs->update($id, ['lines' => [$this->sampleLines()[0]]]);
+        $doc = $this->docs->find($id);
+        $this->assertSame(25, (int) $doc['deposit_percent']);
+        $this->assertSame(60000, (int) $doc['total_ttc_cents']);
+        $this->assertSame(15000, (int) $doc['deposit_ttc_cents']);
+    }
+
+    public function testQuoteDepositPercentZeroMeansNoDeposit(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_percent' => 0,
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertSame(0, (int) $doc['deposit_percent']);
+        $this->assertSame(0, (int) $doc['deposit_ttc_cents']);
+    }
+
+    public function testInvoiceIgnoresDepositPercent(): void
+    {
+        $id = $this->docs->create([
+            'doc_type' => 'invoice',
+            'client_id' => $this->clientId,
+            'deposit_percent' => 30,
+            'lines' => $this->sampleLines(),
+        ]);
+        $doc = $this->docs->find($id);
+        $this->assertSame(0, (int) $doc['deposit_percent']);
+        $this->assertSame(0, (int) $doc['deposit_ttc_cents']);
     }
 
     public function testInvoiceDeductionAndRemaining(): void
@@ -234,13 +304,24 @@ final class DocumentRepositoryTest extends IntegrationTestCase
         ]);
     }
 
-    public function testDepositCannotExceedTotal(): void
+    public function testDepositPercentAbove100IsRejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->docs->create([
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
-            'deposit_ttc_cents' => 999999,
+            'deposit_percent' => 101,
+            'lines' => $this->sampleLines(),
+        ]);
+    }
+
+    public function testNegativeDepositPercentIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_percent' => -5,
             'lines' => $this->sampleLines(),
         ]);
     }

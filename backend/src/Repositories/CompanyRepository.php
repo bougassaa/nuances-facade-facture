@@ -6,6 +6,7 @@ namespace Nuances\Facture\Repositories;
 
 use Nuances\Facture\Domain\DocumentType;
 use Nuances\Facture\Services\DocumentNumberService;
+use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 
@@ -39,15 +40,20 @@ final class CompanyRepository
 
     public function update(array $data): void
     {
+        $depositPercent = $this->optionalInt($data, 'quote_deposit_percent', 0, 100, 'L’acompte des devis doit être un pourcentage entier entre 0 et 100');
+        $validityMonths = $this->optionalInt($data, 'quote_validity_months', 0, 99, 'La validité des devis doit être un nombre de mois entre 0 et 99');
+
         $stmt = $this->pdo->prepare(
             'UPDATE company SET
               name = :name, address_line1 = :a1, address_line2 = :a2,
               postal_code = :cp, city = :city, phone = :phone, email = :email,
               siret = :siret, vat_number = :vat, iban = :iban, bic = :bic,
               website = :website, legal_form = :legal_form, payment_terms = :payment_terms,
+              quote_deposit_percent = COALESCE(:deposit_pct, quote_deposit_percent),
+              quote_validity_months = COALESCE(:validity_months, quote_validity_months),
               vat_exempt = :exempt,
               legal_decennale = :dec, legal_late_penalties = :late,
-              legal_recovery_fee = :fee, legal_quote_validity = :valid, legal_extra = :extra
+              legal_recovery_fee = :fee, legal_extra = :extra
              WHERE id = 1'
         );
         $stmt->execute([
@@ -65,11 +71,12 @@ final class CompanyRepository
             'website' => (string) ($data['website'] ?? ''),
             'legal_form' => trim((string) ($data['legal_form'] ?? 'EI')) ?: 'EI',
             'payment_terms' => $data['payment_terms'] ?? null,
+            'deposit_pct' => $depositPercent,
+            'validity_months' => $validityMonths,
             'exempt' => !empty($data['vat_exempt']) ? 1 : 0,
             'dec' => $data['legal_decennale'] ?? null,
             'late' => $data['legal_late_penalties'] ?? null,
             'fee' => $data['legal_recovery_fee'] ?? null,
-            'valid' => $data['legal_quote_validity'] ?? null,
             'extra' => $data['legal_extra'] ?? null,
         ]);
 
@@ -78,6 +85,19 @@ final class CompanyRepository
             $this->numbers->setLastNumber(DocumentType::Quote, $year, (int) $data['last_quote_number']);
             $this->numbers->setLastNumber(DocumentType::Invoice, $year, (int) $data['last_invoice_number']);
         }
+    }
+
+    /** Entier borné, ou null si la clé est absente (valeur enregistrée conservée). */
+    private function optionalInt(array $data, string $key, int $min, int $max, string $error): ?int
+    {
+        if (!array_key_exists($key, $data) || $data[$key] === null || $data[$key] === '') {
+            return null;
+        }
+        $value = filter_var($data[$key], FILTER_VALIDATE_INT);
+        if ($value === false || $value < $min || $value > $max) {
+            throw new InvalidArgumentException($error);
+        }
+        return $value;
     }
 
     public function saveLogo(array $file): void

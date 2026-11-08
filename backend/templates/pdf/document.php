@@ -5,6 +5,10 @@ declare(strict_types=1);
 /**
  * Variables: $document, $company, $client, $lines, $logoDataUri, $signatureDataUri,
  *            $depositAmountCents, $remainingDueCents
+ *
+ * Mise en page calquée sur les devis / factures de l’ancien logiciel de l’artisan.
+ * Helvetica en police principale ; DejaVu Sans prend le relais (caractère par caractère)
+ * pour les glyphes absents de Helvetica.
  */
 
 if (!function_exists('nf_money')) {
@@ -47,10 +51,10 @@ if (!function_exists('nf_vat_label')) {
     }
 }
 
-if (!function_exists('nf_qty_unit')) {
-    function nf_qty_unit($qty, string $unit): string
+if (!function_exists('nf_e')) {
+    function nf_e(mixed $value): string
     {
-        return nf_qty($qty) . ' ' . $unit;
+        return htmlspecialchars((string) $value, ENT_QUOTES);
     }
 }
 
@@ -59,15 +63,23 @@ $number = $document['number'] ?? 'Brouillon';
 $issueDate = nf_date($document['issue_date'] ?? $document['sent_at'] ?? null)
     ?: nf_date(substr((string) ($document['created_at'] ?? ''), 0, 10));
 $depositAmountCents = (int) ($depositAmountCents ?? $document['deposit_ttc_cents'] ?? 0);
+$depositPercent = (int) ($document['deposit_percent'] ?? 0);
+$validityMonths = (int) ($company['quote_validity_months'] ?? 0);
+$vatExempt = !empty($company['vat_exempt']);
 $vatRateBp = (int) ($document['vat_rate_bp'] ?? 2000);
 $deductionCents = (int) ($document['deduction_ttc_cents'] ?? 0);
 $deductionLabel = trim((string) ($document['deduction_label'] ?? ''));
-$hasSite = trim((string) ($document['site_address_line1'] ?? '')) !== ''
-    || trim((string) ($document['site_city'] ?? '')) !== '';
 $object = trim((string) ($document['object'] ?? ''));
 $signatureDataUri = $signatureDataUri ?? null;
 $paymentTerms = trim((string) ($company['payment_terms'] ?? ''));
-$quoteValidity = trim((string) ($company['legal_quote_validity'] ?? ''));
+$companyName = (string) ($company['name'] ?? '');
+
+$siteLines = array_values(array_filter([
+    trim((string) ($document['site_address_line1'] ?? '')),
+    trim((string) ($document['site_address_line2'] ?? '')),
+    trim(($document['site_postal_code'] ?? '') . ' ' . ($document['site_city'] ?? '')),
+], static fn (string $l): bool => $l !== ''));
+$hasSite = $siteLines !== [];
 
 $clientContact = [];
 if (!empty($client['email'])) {
@@ -83,219 +95,273 @@ if (!empty($client['phone'])) {
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { margin: 36px 42px 70px 42px; }
-  body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #222; }
-  .top { width: 100%; margin-bottom: 18px; }
-  .top td { vertical-align: top; }
-  .logo { max-height: 64px; max-width: 160px; margin-bottom: 6px; }
-  .company-block { line-height: 1.35; }
-  .company-block strong { font-size: 12px; }
-  .client-block { text-align: right; line-height: 1.35; }
-  .client-block strong { font-size: 12px; }
-  .doc-meta { margin: 14px 0 10px; }
-  .doc-meta .label { font-size: 13px; font-weight: bold; }
-  .doc-meta .sub { color: #444; margin-top: 2px; }
-  .site { margin: 8px 0 14px; line-height: 1.35; }
-  .site .title { font-weight: bold; margin-bottom: 2px; }
-  table.lines { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  @page { margin: 44px 38px 118px 38px; }
+  body {
+    font-family: Helvetica, "DejaVu Sans", sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #333;
+  }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top; }
+
+  /* En-tête : entreprise (nom, adresse, logo) à gauche, client dans un bloc gris à droite */
+  .header { width: 100%; }
+  .company-cell { width: 54%; padding: 0; }
+  .company-name { font-size: 34px; font-weight: bold; line-height: 1.1; color: #333; margin-bottom: 12px; }
+  .company-sub { width: 100%; }
+  .company-address { padding: 0; line-height: 1.5; }
+  .company-address .contact { margin-top: 10px; }
+  .company-logo { width: 52%; padding: 0 0 0 6px; text-align: left; }
+  .logo { max-width: 140px; max-height: 128px; margin-top: -14px; }
+  .client-cell { width: 46%; padding: 95px 0 0 0; }
+  .client-box {
+    background: #efefef;
+    border-radius: 4px;
+    padding: 12px 18px 14px 18px;
+    line-height: 1.55;
+    font-size: 13px;
+  }
+  .client-box .client-name { margin-bottom: 4px; }
+  .client-box .contact { font-size: 11px; margin-top: 4px; }
+
+  /* Numéro, validité, adresse du projet, date */
+  .meta { width: 100%; margin-top: 30px; }
+  .meta-left { width: 54%; padding: 0; }
+  .meta-right { width: 46%; padding: 0 0 0 18px; }
+  .doc-title { font-size: 17px; font-weight: bold; line-height: 1.2; }
+  .validity { margin: 2px 0 14px 0; }
+  .project-label { font-style: italic; margin-top: 2px; }
+  .project-address {
+    width: 69%;
+    background: #efefef;
+    border-radius: 4px;
+    padding: 8px 18px 10px 18px;
+    margin-top: 6px;
+    line-height: 1.55;
+  }
+  .issue-date { padding-top: 2px; }
+
+  /* Objet du document */
+  .object { font-size: 22px; font-style: italic; margin: 34px 0 30px 40px; line-height: 1.2; }
+
+  /* Lignes */
+  table.lines { width: 100%; border: 1px solid #dcdcdc; }
   table.lines th {
-    background: #f3f3f3;
-    border-bottom: 1px solid #888;
-    padding: 5px 4px;
+    background: #8f8f8f;
+    color: #fff;
+    font-weight: bold;
+    padding: 9px 7px;
     text-align: left;
-    font-size: 9px;
-    text-transform: none;
+    white-space: nowrap;
   }
-  table.lines td { border-bottom: 1px solid #ddd; padding: 5px 4px; vertical-align: top; }
-  table.lines .num { text-align: right; white-space: nowrap; }
-  table.lines .center { text-align: center; white-space: nowrap; }
-  .totals-wrap { width: 100%; margin-top: 12px; }
-  .totals-wrap td { vertical-align: top; }
-  .totals { width: 230px; margin-left: auto; }
-  .totals td { padding: 3px 4px; }
-  .totals .grand { font-weight: bold; font-size: 11px; border-top: 1px solid #333; }
-  .totals .deduction { color: #333; }
-  .totals .remaining { font-weight: bold; }
-  .deposit { margin-top: 10px; font-size: 10px; }
-  .payment { margin-top: 8px; }
-  .notes { margin-top: 14px; }
-  .legal { margin-top: 18px; font-size: 8px; color: #555; line-height: 1.35; }
-  .signature-page { page-break-before: always; padding-top: 80px; }
-  .signature-box { width: 100%; margin-top: 40px; }
-  .signature-box td { width: 50%; vertical-align: top; padding: 12px; }
-  .signature-box .frame {
-    border: 1px solid #999;
-    min-height: 140px;
-    padding: 14px;
+  table.lines td { padding: 3px 7px; border-left: 1px solid #dcdcdc; }
+  table.lines td.num { border-left: none; }
+  table.lines tr.spacer td { padding: 0; height: 14px; }
+  table.lines tr.spacer-end td { padding: 0; height: 22px; }
+  table.lines .c-num { width: 4%; }
+  table.lines .c-qty { width: 9%; text-align: right; }
+  table.lines .c-price { width: 10%; text-align: right; }
+  table.lines .c-vat { width: 7%; text-align: right; }
+  table.lines .c-total { width: 11%; text-align: right; }
+  table.lines td.qty,
+  table.lines td.money,
+  table.lines td.vat { text-align: right; white-space: nowrap; }
+
+  /* Mentions + totaux */
+  .summary { width: 100%; margin-top: 36px; page-break-inside: avoid; }
+  .summary-left { width: 50%; padding: 6px 24px 0 0; }
+  .summary-right { width: 50%; padding: 0 0 0 6px; }
+  .summary-left p { margin: 0 0 8px 0; }
+  table.totals { width: 100%; border-bottom: 1px solid #cfcfcf; }
+  table.totals td { padding: 4px 9px; border-top: 1px solid #cfcfcf; white-space: nowrap; }
+  table.totals td.amount { text-align: right; }
+  table.totals tr.strong td { font-weight: bold; }
+  table.totals tr.band td {
+    background: #8f8f8f;
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+    border-top: 1px solid #8f8f8f;
   }
-  .signature-box h4 { margin: 0 0 10px; font-size: 11px; }
-  .signature-img-wrap { text-align: center; margin-top: 8px; }
-  .signature-img { display: inline-block; max-width: 220px; max-height: 100px; }
+
+  .legal { margin-top: 26px; font-size: 9px; color: #666; line-height: 1.4; }
+  .legal p { margin: 0 0 4px 0; }
+
+  /* Page signature des devis */
+  .signature-page { page-break-before: always; padding-top: 0; }
+  table.signature-box { width: 100%; }
+  table.signature-box td { vertical-align: bottom; padding: 0; }
+  table.signature-box .sig-side { width: 5%; }
+  table.signature-box .sig-cell { width: 40%; }
+  table.signature-box .sig-gap { width: 10%; }
+  .sig-label { font-size: 13px; font-weight: bold; margin-bottom: 2px; }
+  .sig-frame { background: #efefef; border-radius: 4px; }
+  .sig-client { height: 100px; padding: 2px 16px; font-size: 12px; line-height: 1.2; }
+  .sig-company { height: 76px; text-align: center; }
+  .signature-img { max-width: 120px; max-height: 72px; margin-top: 2px; }
 </style>
 </head>
 <body>
 
-<table class="top">
+<table class="header">
   <tr>
-    <td width="52%">
-      <?php if (!empty($logoDataUri)): ?>
-        <img class="logo" src="<?= htmlspecialchars($logoDataUri, ENT_QUOTES) ?>" alt="Logo">
-      <?php endif; ?>
-      <div class="company-block">
-        <strong><?= htmlspecialchars((string) ($company['name'] ?? ''), ENT_QUOTES) ?></strong><br>
-        <?php if (!empty($company['address_line1'])): ?>
-          <?= htmlspecialchars((string) $company['address_line1'], ENT_QUOTES) ?><br>
-        <?php endif; ?>
-        <?php if (!empty($company['address_line2'])): ?>
-          <?= htmlspecialchars((string) $company['address_line2'], ENT_QUOTES) ?><br>
-        <?php endif; ?>
-        <?php
-          $companyCity = trim(($company['postal_code'] ?? '') . ' ' . ($company['city'] ?? ''));
-          if ($companyCity !== ''):
-        ?>
-          <?= htmlspecialchars($companyCity, ENT_QUOTES) ?><br>
-        <?php endif; ?>
-        France<br>
-        <?php if (!empty($company['phone'])): ?>
-          Tél : <?= htmlspecialchars((string) $company['phone'], ENT_QUOTES) ?><br>
-        <?php endif; ?>
-        <?php if (!empty($company['email'])): ?>
-          <?= htmlspecialchars((string) $company['email'], ENT_QUOTES) ?><br>
-        <?php endif; ?>
-        <?php if (!empty($company['website'])): ?>
-          <?= htmlspecialchars((string) $company['website'], ENT_QUOTES) ?>
-        <?php endif; ?>
-      </div>
+    <td class="company-cell">
+      <div class="company-name"><?= nf_e($companyName) ?></div>
+      <table class="company-sub">
+        <tr>
+          <td class="company-address">
+            <?php if (!empty($company['address_line1'])): ?>
+              <?= nf_e($company['address_line1']) ?><br>
+            <?php endif; ?>
+            <?php if (!empty($company['address_line2'])): ?>
+              <?= nf_e($company['address_line2']) ?><br>
+            <?php endif; ?>
+            <?php $companyCity = trim(($company['postal_code'] ?? '') . ' ' . ($company['city'] ?? '')); ?>
+            <?php if ($companyCity !== ''): ?>
+              <?= nf_e($companyCity) ?><br>
+            <?php endif; ?>
+            France
+            <div class="contact">
+              <?php if (!empty($company['phone'])): ?>
+                Tél : <?= nf_e($company['phone']) ?><br>
+              <?php endif; ?>
+              <?php if (!empty($company['email'])): ?>
+                <?= nf_e($company['email']) ?><br>
+              <?php endif; ?>
+              <?php if (!empty($company['website'])): ?>
+                <?= nf_e($company['website']) ?>
+              <?php endif; ?>
+            </div>
+          </td>
+          <?php if (!empty($logoDataUri)): ?>
+            <td class="company-logo">
+              <img class="logo" src="<?= nf_e($logoDataUri) ?>" alt="Logo">
+            </td>
+          <?php endif; ?>
+        </tr>
+      </table>
     </td>
-    <td width="48%">
-      <div class="client-block">
-        <strong><?= htmlspecialchars((string) ($client['name'] ?? ''), ENT_QUOTES) ?></strong><br>
+    <td class="client-cell">
+      <div class="client-box">
+        <div class="client-name"><?= nf_e($client['name'] ?? '') ?></div>
         <?php if (!empty($client['address_line1'])): ?>
-          <?= htmlspecialchars((string) $client['address_line1'], ENT_QUOTES) ?><br>
+          <?= nf_e($client['address_line1']) ?><br>
         <?php endif; ?>
         <?php if (!empty($client['address_line2'])): ?>
-          <?= htmlspecialchars((string) $client['address_line2'], ENT_QUOTES) ?><br>
+          <?= nf_e($client['address_line2']) ?><br>
         <?php endif; ?>
-        <?php
-          $clientCity = trim(($client['postal_code'] ?? '') . ' ' . ($client['city'] ?? ''));
-          if ($clientCity !== ''):
-        ?>
-          <?= htmlspecialchars($clientCity, ENT_QUOTES) ?><br>
+        <?php $clientCity = trim(($client['postal_code'] ?? '') . ' ' . ($client['city'] ?? '')); ?>
+        <?php if ($clientCity !== ''): ?>
+          <?= nf_e($clientCity) ?><br>
         <?php endif; ?>
-        France<br>
+        France
         <?php if ($clientContact !== []): ?>
-          <?= htmlspecialchars(implode(' — ', $clientContact), ENT_QUOTES) ?>
+          <div class="contact"><?= nf_e(implode(' — ', $clientContact)) ?></div>
         <?php endif; ?>
       </div>
     </td>
   </tr>
 </table>
 
-<div class="doc-meta">
-  <div class="label">
-    <?= $isQuote ? 'Devis' : 'Facture' ?> n° <?= htmlspecialchars((string) $number, ENT_QUOTES) ?>
-  </div>
-  <?php if ($isQuote && $quoteValidity !== ''): ?>
-    <div class="sub"><?= htmlspecialchars($quoteValidity, ENT_QUOTES) ?></div>
-  <?php endif; ?>
-  <?php if ($issueDate !== ''): ?>
-    <div class="sub">En date du <?= htmlspecialchars($issueDate, ENT_QUOTES) ?></div>
-  <?php endif; ?>
-</div>
+<table class="meta">
+  <tr>
+    <td class="meta-left">
+      <div class="doc-title"><?= $isQuote ? 'Devis' : 'Facture' ?> n° <?= nf_e($number) ?></div>
+      <?php if ($isQuote && $validityMonths > 0): ?>
+        <div class="validity">Valable <?= $validityMonths ?> mois</div>
+      <?php endif; ?>
+      <?php if ($hasSite): ?>
+        <div class="project-label">Adresse du projet :</div>
+        <div class="project-address">
+          <?php foreach ($siteLines as $siteLine): ?>
+            <?= nf_e($siteLine) ?><br>
+          <?php endforeach; ?>
+          France
+        </div>
+      <?php endif; ?>
+    </td>
+    <td class="meta-right">
+      <?php if ($issueDate !== ''): ?>
+        <div class="issue-date">En date du <?= nf_e($issueDate) ?></div>
+      <?php endif; ?>
+    </td>
+  </tr>
+</table>
 
-<?php if ($object !== '' || $hasSite): ?>
-  <div class="site">
-    <?php if ($object !== ''): ?>
-      <div class="title"><?= htmlspecialchars($object, ENT_QUOTES) ?></div>
-    <?php endif; ?>
-    <?php if ($hasSite): ?>
-      <div><strong>Adresse du projet :</strong></div>
-      <?php if (!empty($document['site_address_line1'])): ?>
-        <?= htmlspecialchars((string) $document['site_address_line1'], ENT_QUOTES) ?><br>
-      <?php endif; ?>
-      <?php if (!empty($document['site_address_line2'])): ?>
-        <?= htmlspecialchars((string) $document['site_address_line2'], ENT_QUOTES) ?><br>
-      <?php endif; ?>
-      <?php
-        $siteCity = trim(($document['site_postal_code'] ?? '') . ' ' . ($document['site_city'] ?? ''));
-        if ($siteCity !== ''):
-      ?>
-        <?= htmlspecialchars($siteCity, ENT_QUOTES) ?><br>
-      <?php endif; ?>
-      France
-    <?php endif; ?>
-  </div>
+<?php if ($object !== ''): ?>
+  <div class="object"><?= nf_e($object) ?></div>
 <?php endif; ?>
 
 <table class="lines">
   <thead>
     <tr>
-      <th style="width:6%;">N°</th>
-      <th>Désignation</th>
-      <th class="center" style="width:12%;">Qté</th>
-      <th class="num" style="width:16%;">PU HT</th>
-      <th class="num" style="width:16%;">Total HT</th>
+      <th class="c-num">N°</th>
+      <th class="c-label">Désignation</th>
+      <th class="c-qty">Qté</th>
+      <th class="c-price">PU HT</th>
+      <?php if (!$vatExempt): ?>
+        <th class="c-vat">TVA</th>
+      <?php endif; ?>
+      <th class="c-total">Total HT</th>
     </tr>
   </thead>
   <tbody>
+    <?php $columnCount = $vatExempt ? 5 : 6; ?>
+    <tr class="spacer"><?= str_repeat('<td></td>', $columnCount) ?></tr>
     <?php foreach ($lines as $i => $line): ?>
       <tr>
-        <td class="center"><?= $i + 1 ?></td>
-        <td><?= nl2br(htmlspecialchars((string) $line['label'], ENT_QUOTES)) ?></td>
-        <td class="center"><?= htmlspecialchars(nf_qty_unit($line['quantity'], (string) $line['unit']), ENT_QUOTES) ?></td>
-        <td class="num"><?= nf_money((int) $line['unit_price_ht_cents']) ?></td>
-        <td class="num"><?= nf_money((int) $line['line_ht_cents']) ?></td>
+        <td class="num"><?= $i + 1 ?></td>
+        <td class="label"><?= nl2br(nf_e($line['label'])) ?></td>
+        <td class="qty"><?= nf_e(nf_qty($line['quantity'])) ?>&nbsp;&nbsp;<?= nf_e($line['unit']) ?></td>
+        <td class="money"><?= nf_money((int) $line['unit_price_ht_cents']) ?></td>
+        <?php if (!$vatExempt): ?>
+          <td class="vat"><?= nf_vat_label($vatRateBp) ?></td>
+        <?php endif; ?>
+        <td class="money"><?= nf_money((int) $line['line_ht_cents']) ?></td>
       </tr>
     <?php endforeach; ?>
+    <tr class="spacer-end"><?= str_repeat('<td></td>', $columnCount) ?></tr>
   </tbody>
 </table>
 
-<table class="totals-wrap">
+<table class="summary">
   <tr>
-    <td width="50%">
+    <td class="summary-left">
       <?php if ($isQuote && $depositAmountCents > 0): ?>
-        <div class="deposit">
-          Acompte à la signature de <?= nf_money((int) $depositAmountCents) ?>.
-        </div>
+        <p class="deposit">Acompte à la signature de <?= $depositPercent ?> %, soit <?= nf_money($depositAmountCents) ?>.</p>
       <?php endif; ?>
       <?php if (!$isQuote && $paymentTerms !== ''): ?>
-        <div class="payment"><?= nl2br(htmlspecialchars($paymentTerms, ENT_QUOTES)) ?></div>
+        <p class="payment"><?= nl2br(nf_e($paymentTerms)) ?></p>
       <?php endif; ?>
       <?php if (!empty($document['notes'])): ?>
-        <div class="notes">
-          <?= nl2br(htmlspecialchars((string) $document['notes'], ENT_QUOTES)) ?>
-        </div>
+        <p class="notes"><?= nl2br(nf_e($document['notes'])) ?></p>
       <?php endif; ?>
     </td>
-    <td width="50%">
+    <td class="summary-right">
       <table class="totals">
-        <tr>
+        <tr class="strong">
           <td>Total HT</td>
-          <td class="num"><?= nf_money((int) $document['total_ht_cents']) ?></td>
+          <td class="amount"><?= nf_money((int) $document['total_ht_cents']) ?></td>
         </tr>
-        <?php if ((int) ($document['total_vat_cents'] ?? 0) > 0): ?>
+        <?php if ((int) ($document['total_vat_cents'] ?? 0) > 0 || !$vatExempt): ?>
           <tr>
             <td>TVA à <?= nf_vat_label($vatRateBp) ?></td>
-            <td class="num"><?= nf_money((int) $document['total_vat_cents']) ?></td>
-          </tr>
-        <?php elseif (empty($company['vat_exempt'])): ?>
-          <tr>
-            <td>TVA à <?= nf_vat_label($vatRateBp) ?></td>
-            <td class="num"><?= nf_money(0) ?></td>
+            <td class="amount"><?= nf_money((int) ($document['total_vat_cents'] ?? 0)) ?></td>
           </tr>
         <?php endif; ?>
-        <tr class="grand">
+        <tr class="band">
           <td>Total TTC</td>
-          <td class="num"><?= nf_money((int) $document['total_ttc_cents']) ?></td>
+          <td class="amount"><?= nf_money((int) $document['total_ttc_cents']) ?></td>
         </tr>
         <?php if (!$isQuote && $deductionCents > 0): ?>
-          <tr class="deduction">
-            <td><?= htmlspecialchars($deductionLabel !== '' ? $deductionLabel : 'Acompte', ENT_QUOTES) ?></td>
-            <td class="num">− <?= nf_money($deductionCents) ?></td>
+          <tr>
+            <td><?= nf_e($deductionLabel !== '' ? $deductionLabel : 'Acompte') ?></td>
+            <td class="amount">- <?= nf_money($deductionCents) ?></td>
           </tr>
-          <tr class="remaining">
+          <tr class="band">
             <td>Reste à payer</td>
-            <td class="num"><?= nf_money((int) $remainingDueCents) ?></td>
+            <td class="amount"><?= nf_money((int) $remainingDueCents) ?></td>
           </tr>
         <?php endif; ?>
       </table>
@@ -303,44 +369,46 @@ if (!empty($client['phone'])) {
   </tr>
 </table>
 
-<div class="legal">
-  <?php if (!empty($company['legal_late_penalties'])): ?>
-    <p><?= nl2br(htmlspecialchars((string) $company['legal_late_penalties'], ENT_QUOTES)) ?></p>
-  <?php endif; ?>
-  <?php if (!empty($company['legal_recovery_fee'])): ?>
-    <p><?= nl2br(htmlspecialchars((string) $company['legal_recovery_fee'], ENT_QUOTES)) ?></p>
-  <?php endif; ?>
-  <?php if (!empty($company['legal_extra'])): ?>
-    <p><?= nl2br(htmlspecialchars((string) $company['legal_extra'], ENT_QUOTES)) ?></p>
-  <?php endif; ?>
-  <?php if (!empty($company['vat_exempt'])): ?>
-    <p><em>TVA non applicable — art. 293 B du CGI</em></p>
-  <?php endif; ?>
-</div>
+<?php
+  $legal = array_values(array_filter([
+      trim((string) ($company['legal_late_penalties'] ?? '')),
+      trim((string) ($company['legal_recovery_fee'] ?? '')),
+      trim((string) ($company['legal_extra'] ?? '')),
+  ], static fn (string $t): bool => $t !== ''));
+?>
+<?php if ($legal !== [] || $vatExempt): ?>
+  <div class="legal">
+    <?php foreach ($legal as $text): ?>
+      <p><?= nl2br(nf_e($text)) ?></p>
+    <?php endforeach; ?>
+    <?php if ($vatExempt): ?>
+      <p><em>TVA non applicable — art. 293 B du CGI</em></p>
+    <?php endif; ?>
+  </div>
+<?php endif; ?>
 
 <?php if ($isQuote): ?>
 <div class="signature-page">
-  <p><strong><?= htmlspecialchars((string) $number, ENT_QUOTES) ?></strong></p>
   <table class="signature-box">
     <tr>
-      <td>
-        <div class="frame">
-          <h4>Le client</h4>
-          <p>Mention datée et signée :<br>
-          « Devis reçu avant l’exécution des travaux.<br>
-          Bon pour travaux. »</p>
+      <td class="sig-side"></td>
+      <td class="sig-cell">
+        <div class="sig-label">Le client</div>
+        <div class="sig-frame sig-client">
+          Mention datée et signée :<br>
+          <em>« Devis reçu avant l’exécution des travaux.<br>Bon pour travaux. »</em>
         </div>
       </td>
-      <td>
-        <div class="frame">
-          <h4><?= htmlspecialchars((string) ($company['name'] ?? 'Nuances Façade'), ENT_QUOTES) ?></h4>
+      <td class="sig-gap"></td>
+      <td class="sig-cell">
+        <div class="sig-label"><?= nf_e($companyName !== '' ? $companyName : 'Nuances Façade') ?></div>
+        <div class="sig-frame sig-company">
           <?php if (!empty($signatureDataUri)): ?>
-            <div class="signature-img-wrap">
-              <img class="signature-img" src="<?= htmlspecialchars((string) $signatureDataUri, ENT_QUOTES) ?>" alt="Signature">
-            </div>
+            <img class="signature-img" src="<?= nf_e($signatureDataUri) ?>" alt="Signature">
           <?php endif; ?>
         </div>
       </td>
+      <td class="sig-side"></td>
     </tr>
   </table>
 </div>

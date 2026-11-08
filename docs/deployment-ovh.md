@@ -5,7 +5,9 @@
 1. Hébergement web OVH (offre classique) avec PHP 8.4.
 2. Domaine `nuances-facade.fr` déjà sur l’hébergement (`www/`).
 3. Multisite : ajouter le sous-domaine `facture.nuances-facade.fr` avec racine `facture/` et SSL ([guide multisite](https://docs.ovhcloud.com/en/guides/web-cloud/web-hosting/multisites-configure-multisite.md)).
-4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql`, puis `003_document_vat_deposit.sql`, puis `004_line_designations.sql`, puis `005_company_signature.sql`.
+4. Base MySQL créée dans l’espace client ; importer `backend/sql/001_init.sql`. Sur une base déjà en production, appliquer aussi `002_document_layout.sql`, puis `003_document_vat_deposit.sql`, puis `004_line_designations.sql`, puis `005_company_signature.sql`, puis `006_quote_deposit_validity.sql`.
+
+`006_quote_deposit_validity.sql` ajoute l’acompte devis en % (réglage 30 % par défaut) et la validité en mois (2 par défaut, remplace le texte libre « Validité des devis »). Les devis existants avec un acompte en euros reçoivent le pourcentage arrondi correspondant, et leur montant est recalculé depuis ce pourcentage. À appliquer **avant** de déployer le code qui l’utilise.
 
 ## Arborescence FTP / SFTP
 

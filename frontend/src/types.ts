@@ -45,6 +45,7 @@ export type Document = {
   site_postal_code: string
   site_city: string
   vat_rate_bp: number
+  deposit_percent: number
   deposit_ttc_cents: number
   deduction_label: string
   deduction_ttc_cents: number
@@ -74,11 +75,12 @@ export type Company = {
   website: string
   legal_form: string
   payment_terms: string | null
+  quote_deposit_percent: number
+  quote_validity_months: number
   vat_exempt: number | boolean
   legal_decennale: string | null
   legal_late_penalties: string | null
   legal_recovery_fee: string | null
-  legal_quote_validity: string | null
   legal_extra: string | null
   has_logo: boolean
   has_signature: boolean

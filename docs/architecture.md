@@ -41,14 +41,14 @@ En développement, `backend/public/` joue le rôle de `facture/api/` + front con
 - Quantités en décimal (4 décimales max).
 - Saisie : clavier décimal pour quantité et montants, clavier numérique pour compteurs, code postal et SIRET, clavier téléphone pour les numéros. Virgule et point sont acceptés comme séparateur ; l’API et MySQL reçoivent des nombres (centimes entiers, quantité décimale), jamais une chaîne localisée.
 - Arrondi HT à la ligne : `round(qty * unit_ht_cents)` puis somme ; TVA une seule fois : `round(total_ht_cents * vat_rate_bp / 10000)`.
-- Acompte devis : montant TTC saisi (`deposit_ttc_cents`), ≤ total TTC.
+- Acompte devis : pourcentage saisi (`deposit_percent`, prérempli depuis `company.quote_deposit_percent`), montant `deposit_ttc_cents = round(total_ttc_cents × percent / 100)` recalculé par le serveur à chaque enregistrement.
 - Reste à payer facture : `total_ttc_cents - deduction_ttc_cents` (affichage).
 
 ## PDF
 
-- Template HTML PHP → dompdf 3.x, pied de page via callback canvas (pagination + mentions légales).
+- Template HTML PHP → dompdf 3.x, police Helvetica (police standard PDF) avec repli automatique DejaVu Sans caractère par caractère pour les glyphes absents ; pied de page via callback canvas (texte centré avec retour à la ligne, pagination, numéro en haut à droite dès la page 2).
 - Généré à la demande (téléchargement) et après action « Envoyer ».
-- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql`, `004_line_designations.sql`, `005_company_signature.sql` (bases déjà en prod).
+- Schéma SQL : `001_init.sql` (install) ; migrations `002_document_layout.sql`, `003_document_vat_deposit.sql`, `004_line_designations.sql`, `005_company_signature.sql`, `006_quote_deposit_validity.sql` (bases déjà en prod).
 
 ## Sécurité
 

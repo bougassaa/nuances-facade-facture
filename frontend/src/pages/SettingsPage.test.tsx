@@ -22,11 +22,12 @@ const company = {
   website: '',
   legal_form: 'EI',
   payment_terms: null,
+  quote_deposit_percent: 30,
+  quote_validity_months: 2,
   vat_exempt: false,
   legal_decennale: null,
   legal_late_penalties: null,
   legal_recovery_fee: null,
-  legal_quote_validity: null,
   legal_extra: null,
   has_logo: false,
   has_signature: false,
@@ -108,6 +109,65 @@ describe('SettingsPage numérotation', () => {
       const body = JSON.parse(String((put![1] as RequestInit).body))
       expect(body.last_quote_number).toBe(40)
       expect(body.last_invoice_number).toBe(4)
+    })
+  })
+})
+
+describe('SettingsPage devis', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('règle l’acompte (%) et la validité (mois) des devis', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url.includes('/company') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify(company) }
+      }
+      if (url.includes('/company') && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ...company, ...body }),
+        }
+      }
+      if (url.includes('/designations') && method === 'GET') {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ items: [] }) }
+      }
+      return { ok: true, status: 200, text: async () => '{}' }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <SettingsPage />
+      </ThemeProvider>,
+    )
+
+    const deposit = await screen.findByLabelText('Acompte des devis (%)')
+    const validity = screen.getByLabelText('Validité des devis (mois)')
+    expect(deposit).toHaveValue('30')
+    expect(deposit).toHaveAttribute('inputmode', 'numeric')
+    expect(validity).toHaveValue('2')
+    expect(screen.queryByLabelText('Validité des devis')).not.toBeInTheDocument()
+
+    fireEvent.change(deposit, { target: { value: '40' } })
+    fireEvent.change(validity, { target: { value: '3' } })
+    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[0])
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        (c) => callUrl(c).includes('/company') && callMethod(c) === 'PUT',
+      )
+      expect(put).toBeTruthy()
+      const body = JSON.parse(String((put![1] as RequestInit).body))
+      expect(body.quote_deposit_percent).toBe(40)
+      expect(body.quote_validity_months).toBe(3)
+      expect(body).not.toHaveProperty('legal_quote_validity')
     })
   })
 })

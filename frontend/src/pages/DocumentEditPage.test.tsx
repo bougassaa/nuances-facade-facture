@@ -27,7 +27,9 @@ function mockFetch(handlers: Record<string, unknown> = {}) {
         ok: true,
         status: 200,
         text: async () =>
-          JSON.stringify(handlers.company ?? { vat_exempt: false, vat_rates: [] }),
+          JSON.stringify(
+            handlers.company ?? { vat_exempt: false, vat_rates: [], quote_deposit_percent: 30 },
+          ),
       }
     }
     if (url.includes('/clients') && !url.match(/\/clients\/\d+/)) {
@@ -82,8 +84,10 @@ describe('DocumentEditPage', () => {
 
     expect(await screen.findByLabelText('Chantier')).toBeInTheDocument()
     expect(screen.getByText('Adresse du projet')).toBeInTheDocument()
-    const deposit = await screen.findByLabelText('Acompte (€)')
-    expect(deposit).toHaveAttribute('inputmode', 'decimal')
+    const deposit = await screen.findByLabelText('Acompte (%)')
+    expect(deposit).toHaveAttribute('inputmode', 'numeric')
+    await waitFor(() => expect(deposit).toHaveValue('30'))
+    expect(screen.queryByLabelText(/Valable jusqu/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Qté')).toHaveAttribute('inputmode', 'decimal')
     expect(screen.getByLabelText('P.U. HT (€)')).toHaveAttribute('inputmode', 'decimal')
     expect(screen.getByLabelText('Code postal')).toHaveAttribute('inputmode', 'numeric')
@@ -178,6 +182,58 @@ describe('DocumentEditPage', () => {
     expect(screen.getByText(/Total HT/)).toHaveTextContent(/25,00/)
   })
 
+  it('calcule l’acompte du devis à partir du pourcentage prérempli', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch())
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/new?type=quote']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    const deposit = await screen.findByLabelText('Acompte (%)')
+    await waitFor(() => expect(deposit).toHaveValue('30'))
+    await user.type(screen.getByLabelText('Désignation'), 'Enduit')
+    const price = screen.getByLabelText('P.U. HT (€)')
+    await user.clear(price)
+    await user.type(price, '100')
+    // 100,00 € HT + TVA 20 % = 120,00 € TTC → 30 % = 36,00 €
+    expect(screen.getByText(/Acompte \(30\s%\)/)).toHaveTextContent(/36,00/)
+
+    await user.clear(deposit)
+    await user.type(deposit, '40')
+    expect(screen.getByText(/Acompte \(40\s%\)/)).toHaveTextContent(/48,00/)
+
+    await user.clear(deposit)
+    await user.type(deposit, '150')
+    expect(screen.getByText('Entre 0 et 100 %')).toBeInTheDocument()
+    expect(screen.queryByText(/Acompte \(150\s%\)/)).not.toBeInTheDocument()
+  })
+
+  it('n’affiche pas d’acompte en % sur une facture', async () => {
+    vi.stubGlobal('fetch', mockFetch())
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={['/documents/new?type=invoice']}>
+          <Routes>
+            <Route path="/documents/:id" element={<DocumentEditPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+
+    expect(await screen.findByLabelText('Libellé de déduction')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Acompte (%)')).not.toBeInTheDocument()
+  })
+
   it('laisse éditer un devis déjà envoyé', async () => {
     const client = {
       id: 1,
@@ -207,7 +263,8 @@ describe('DocumentEditPage', () => {
       site_postal_code: '26790',
       site_city: 'suze la rousse',
       vat_rate_bp: 2000,
-      deposit_ttc_cents: 0,
+      deposit_percent: 25,
+      deposit_ttc_cents: 300,
       deduction_label: '',
       deduction_ttc_cents: 0,
       total_ht_cents: 1000,
@@ -219,9 +276,7 @@ describe('DocumentEditPage', () => {
       lines: [{ id: 1, label: 'Enduit', quantity: 1, unit: 'm²', unit_price_ht_cents: 1000 }],
     }
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo) => {
+    const fetchMock = vi.fn(async (input: RequestInfo, _init?: RequestInit) => {
         const url = String(input)
         const payload = url.includes('/documents/7')
           ? doc
@@ -232,11 +287,12 @@ describe('DocumentEditPage', () => {
               : url.includes('/designations')
                 ? { items: [] }
                 : url.includes('/company')
-                  ? { vat_exempt: false }
+                  ? { vat_exempt: false, quote_deposit_percent: 30 }
                   : {}
         return { ok: true, status: 200, text: async () => JSON.stringify(payload) }
-      }),
-    )
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
 
     render(
       <ThemeProvider theme={theme}>
@@ -259,6 +315,22 @@ describe('DocumentEditPage', () => {
     expect(screen.getByRole('button', { name: 'Télécharger le PDF' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Envoyer/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Supprimer le brouillon' })).not.toBeInTheDocument()
+
+    // Le pourcentage du devis prime sur celui des réglages (30 %).
+    expect(screen.getByLabelText('Acompte (%)')).toHaveValue('25')
+    expect(screen.getByText(/Acompte \(25\s%\)/)).toHaveTextContent(/3,00/)
+
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        (c) => String(c[0]).includes('/documents/7') && c[1]?.method === 'PUT',
+      )
+      expect(put).toBeTruthy()
+      const body = JSON.parse(String(put![1]?.body))
+      expect(body.deposit_percent).toBe(25)
+      expect(body).not.toHaveProperty('deposit_ttc_cents')
+      expect(body).not.toHaveProperty('valid_until')
+    })
   })
 
   it('affiche déduction et reste à payer sur une facture', async () => {

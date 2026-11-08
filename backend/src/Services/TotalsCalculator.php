@@ -143,6 +143,12 @@ final class TotalsCalculator
         return $negative ? '-' . $s : $s;
     }
 
+    /** Acompte devis = pourcentage du TTC, arrondi au centime. */
+    public function depositCents(int $totalTtcCents, int $percent): int
+    {
+        return (int) round($totalTtcCents * $percent / 100);
+    }
+
     /** Reste à payer = TTC − déduction (jamais négatif). */
     public function remainingDueCents(int $totalTtcCents, int $deductionTtcCents): int
     {

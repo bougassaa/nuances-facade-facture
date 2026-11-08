@@ -35,6 +35,9 @@ type LineForm = {
   unit_price: string
 }
 
+/** Repli si les réglages ne renvoient pas encore d’acompte par défaut. */
+const DEFAULT_DEPOSIT_PERCENT = 30
+
 const VAT_OPTIONS = [
   { value: 2000, label: '20 %' },
   { value: 1000, label: '10 %' },
@@ -122,13 +125,13 @@ export default function DocumentEditPage() {
   const [number, setNumber] = useState<string | null>(null)
   const [object, setObject] = useState('')
   const [notes, setNotes] = useState('')
-  const [validUntil, setValidUntil] = useState('')
   const [siteAddress1, setSiteAddress1] = useState('')
   const [siteAddress2, setSiteAddress2] = useState('')
   const [sitePostal, setSitePostal] = useState('')
   const [siteCity, setSiteCity] = useState('')
   const [vatRateBp, setVatRateBp] = useState(2000)
-  const [depositAmount, setDepositAmount] = useState('0,00')
+  // Vide tant que ni le devis ni les réglages (acompte par défaut) ne sont chargés.
+  const [depositPercent, setDepositPercent] = useState('')
   const [deductionLabel, setDeductionLabel] = useState('')
   const [deductionAmount, setDeductionAmount] = useState('0,00')
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
@@ -152,6 +155,10 @@ export default function DocumentEditPage() {
         const exempt = Boolean(c.vat_exempt)
         setVatExempt(exempt)
         if (exempt) setVatRateBp(0)
+        // Nouveau devis : prérempli avec l’acompte des réglages, sans écraser un devis chargé.
+        setDepositPercent((current) =>
+          current === '' ? String(c.quote_deposit_percent ?? DEFAULT_DEPOSIT_PERCENT) : current,
+        )
       })
       .catch(() => {
         /* réglages optionnels pour l’aperçu TVA */
@@ -176,13 +183,12 @@ export default function DocumentEditPage() {
         setNumber(doc.number)
         setObject(doc.object)
         setNotes(doc.notes ?? '')
-        setValidUntil(doc.valid_until ?? '')
         setSiteAddress1(doc.site_address_line1 ?? '')
         setSiteAddress2(doc.site_address_line2 ?? '')
         setSitePostal(doc.site_postal_code ?? '')
         setSiteCity(doc.site_city ?? '')
         setVatRateBp(doc.vat_rate_bp ?? 2000)
-        setDepositAmount(centsToEurosInput(doc.deposit_ttc_cents ?? 0))
+        setDepositPercent(String(doc.deposit_percent ?? 0))
         setDeductionLabel(doc.deduction_label ?? '')
         setDeductionAmount(centsToEurosInput(doc.deduction_ttc_cents ?? 0))
         setLines(linesFromDoc(doc.lines))
@@ -201,7 +207,8 @@ export default function DocumentEditPage() {
     return { ht, vat, ttc: ht + vat }
   }, [lines, effectiveVatRate])
 
-  const depositCents = useMemo(() => eurosToCents(depositAmount), [depositAmount])
+  const depositPct = Number.parseInt(depositPercent, 10) || 0
+  const depositCents = Math.round((previewTotals.ttc * depositPct) / 100)
   const deductionCents = useMemo(() => eurosToCents(deductionAmount), [deductionAmount])
   const remainingCents = Math.max(0, previewTotals.ttc - deductionCents)
 
@@ -234,13 +241,12 @@ export default function DocumentEditPage() {
       client_id: client.id,
       object,
       notes,
-      valid_until: validUntil || null,
       site_address_line1: siteAddress1,
       site_address_line2: siteAddress2,
       site_postal_code: sitePostal,
       site_city: siteCity,
       vat_rate_bp: effectiveVatRate,
-      deposit_ttc_cents: docType === 'quote' ? eurosToCents(depositAmount) : 0,
+      deposit_percent: docType === 'quote' ? depositPct : 0,
       deduction_label: docType === 'invoice' ? deductionLabel : '',
       deduction_ttc_cents: docType === 'invoice' ? eurosToCents(deductionAmount) : 0,
       lines: toPayloadLines(lines),
@@ -378,16 +384,6 @@ export default function DocumentEditPage() {
         </Button>
       )}
 
-      {docType === 'quote' && (
-        <TextField
-          label="Valable jusqu’au"
-          type="date"
-          slotProps={{ inputLabel: { shrink: true } }}
-          value={validUntil}
-          onChange={(e) => setValidUntil(e.target.value)}
-        />
-      )}
-
       <Typography variant="subtitle1">Lignes</Typography>
       {lines.map((line, index) => (
         <Card key={line.key} variant="outlined">
@@ -518,10 +514,12 @@ export default function DocumentEditPage() {
           )}
           {docType === 'quote' && (
             <NumberField
-              label="Acompte (€)"
-              mode="money"
-              value={depositAmount}
-              onChange={setDepositAmount}
+              label="Acompte (%)"
+              mode="integer"
+              value={depositPercent}
+              onChange={setDepositPercent}
+              error={depositPct > 100}
+              helperText={depositPct > 100 ? 'Entre 0 et 100 %' : '0 = pas d’acompte'}
               sx={{ flex: 1 }}
             />
           )}
@@ -559,8 +557,10 @@ export default function DocumentEditPage() {
         <Typography>Total HT : {formatMoney(displayTotals.ht)}</Typography>
         <Typography>TVA : {formatMoney(displayTotals.vat)}</Typography>
         <Typography sx={{ fontWeight: 700 }}>Total TTC : {formatMoney(displayTotals.ttc)}</Typography>
-        {docType === 'quote' && depositCents > 0 && (
-          <Typography>Acompte : {formatMoney(depositCents)}</Typography>
+        {docType === 'quote' && depositPct > 0 && depositPct <= 100 && (
+          <Typography>
+            Acompte ({depositPct} %) : {formatMoney(depositCents)}
+          </Typography>
         )}
         {docType === 'invoice' && deductionCents > 0 && (
           <>

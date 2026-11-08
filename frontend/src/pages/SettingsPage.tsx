@@ -40,6 +40,8 @@ export default function SettingsPage() {
   const [form, setForm] = useState<Company | null>(null)
   const [lastQuote, setLastQuote] = useState('0')
   const [lastInvoice, setLastInvoice] = useState('0')
+  const [depositPercent, setDepositPercent] = useState('30')
+  const [validityMonths, setValidityMonths] = useState('2')
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -55,6 +57,8 @@ export default function SettingsPage() {
         setForm(c)
         setLastQuote(String(c.counters?.quote ?? 0))
         setLastInvoice(String(c.counters?.invoice ?? 0))
+        setDepositPercent(String(c.quote_deposit_percent ?? 30))
+        setValidityMonths(String(c.quote_validity_months ?? 2))
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
     api<{ items: LineDesignation[] }>('/designations')
@@ -76,11 +80,15 @@ export default function SettingsPage() {
           vat_exempt: Boolean(form.vat_exempt),
           last_quote_number: Number.parseInt(lastQuote, 10) || 0,
           last_invoice_number: Number.parseInt(lastInvoice, 10) || 0,
+          quote_deposit_percent: Number.parseInt(depositPercent, 10) || 0,
+          quote_validity_months: Number.parseInt(validityMonths, 10) || 0,
         }),
       })
       setForm(updated)
       setLastQuote(String(updated.counters?.quote ?? 0))
       setLastInvoice(String(updated.counters?.invoice ?? 0))
+      setDepositPercent(String(updated.quote_deposit_percent ?? 0))
+      setValidityMonths(String(updated.quote_validity_months ?? 0))
       setOk('Enregistré')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
@@ -302,6 +310,30 @@ export default function SettingsPage() {
               helperText="Ex. Paiement à réception."
             />
 
+            <Typography variant="subtitle1">Devis</Typography>
+            <Stack direction="row" spacing={1}>
+              <NumberField
+                label="Acompte des devis (%)"
+                mode="integer"
+                value={depositPercent}
+                onChange={setDepositPercent}
+                helperText="Prérempli sur les nouveaux devis"
+                sx={{ flex: 1 }}
+              />
+              <NumberField
+                label="Validité des devis (mois)"
+                mode="integer"
+                value={validityMonths}
+                onChange={setValidityMonths}
+                helperText={
+                  (Number.parseInt(validityMonths, 10) || 0) > 0
+                    ? `« Valable ${Number.parseInt(validityMonths, 10)} mois » sur le PDF`
+                    : 'Aucune mention sur le PDF'
+                }
+                sx={{ flex: 1 }}
+              />
+            </Stack>
+
             <Typography variant="subtitle1">Mentions légales</Typography>
             <TextField
               label="Assurance décennale"
@@ -324,14 +356,6 @@ export default function SettingsPage() {
               minRows={2}
               value={form.legal_recovery_fee ?? ''}
               onChange={(e) => setForm({ ...form, legal_recovery_fee: e.target.value })}
-            />
-            <TextField
-              label="Validité des devis"
-              multiline
-              minRows={2}
-              value={form.legal_quote_validity ?? ''}
-              onChange={(e) => setForm({ ...form, legal_quote_validity: e.target.value })}
-              helperText="Ex. Valable 3 mois — affiché sous le numéro du devis"
             />
             <TextField
               label="Mentions complémentaires"

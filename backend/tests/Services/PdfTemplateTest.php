@@ -21,7 +21,7 @@ final class PdfTemplateTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->purgeBusinessData();
-        $this->pdo()->exec('UPDATE company SET vat_exempt = 0, legal_quote_validity = "Valable 3 mois", payment_terms = "Paiement à réception.", signature_path = NULL WHERE id = 1');
+        $this->pdo()->exec('UPDATE company SET vat_exempt = 0, quote_validity_months = 2, quote_deposit_percent = 30, payment_terms = "Paiement à réception.", signature_path = NULL WHERE id = 1');
         $clients = new ClientRepository($this->pdo());
         $this->clientId = $clients->create([
             'name' => 'M. Test Client',
@@ -50,7 +50,7 @@ final class PdfTemplateTest extends IntegrationTestCase
             'doc_type' => 'quote',
             'client_id' => $this->clientId,
             'object' => 'Chantier M. TEST',
-            'deposit_ttc_cents' => 29700,
+            'deposit_percent' => 30,
             'vat_rate_bp' => 1000,
             'site_address_line1' => '56 chemin de la berche',
             'site_postal_code' => '26790',
@@ -65,15 +65,50 @@ final class PdfTemplateTest extends IntegrationTestCase
             ],
         ]);
         $html = $this->pdf->renderHtml($id);
-        $this->assertStringContainsString('Acompte à la signature de 297,00 €', $html);
+        // 900,00 € HT + 10 % = 990,00 € TTC ; 30 % = 297,00 €
+        $this->assertStringContainsString('Acompte à la signature de 30 %, soit 297,00 €.', $html);
         $this->assertStringContainsString('Bon pour travaux', $html);
         $this->assertStringContainsString('Adresse du projet', $html);
-        $this->assertStringContainsString('Chantier M. TEST', $html);
-        $this->assertStringContainsString('Valable 3 mois', $html);
+        $this->assertMatchesRegularExpression('/class="project-address"[^>]*>\s*56 chemin de la berche/u', $html);
+        $this->assertMatchesRegularExpression('/class="object"[^>]*>\s*Chantier M. TEST\s*</u', $html);
+        $this->assertStringContainsString('Valable 2 mois', $html);
         $this->assertStringContainsString('TVA à 10 %', $html);
-        $this->assertStringNotContainsString('>TVA</th>', $html);
+        $this->assertStringContainsString('>TVA</th>', $html);
+        $this->assertMatchesRegularExpression('/<td class="vat">\s*10 %\s*<\/td>/u', $html);
         $this->assertStringContainsString('Le client', $html);
         $this->assertStringNotContainsString('class="signature-img"', $html);
+    }
+
+    public function testQuoteHtmlHidesDepositAndValidityWhenZero(): void
+    {
+        $this->pdo()->exec('UPDATE company SET quote_validity_months = 0 WHERE id = 1');
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'deposit_percent' => 0,
+            'lines' => [
+                ['label' => 'Enduit', 'quantity' => 1, 'unit' => 'u', 'unit_price_ht_cents' => 10000],
+            ],
+        ]);
+        $html = $this->pdf->renderHtml($id);
+        $this->assertStringNotContainsString('Acompte à la signature', $html);
+        $this->assertStringNotContainsString('Valable', $html);
+    }
+
+    public function testQuoteValidityFollowsCompanySetting(): void
+    {
+        $this->pdo()->exec('UPDATE company SET quote_validity_months = 3 WHERE id = 1');
+        $id = $this->docs->create([
+            'doc_type' => 'quote',
+            'client_id' => $this->clientId,
+            'lines' => [
+                ['label' => 'Enduit', 'quantity' => 1, 'unit' => 'u', 'unit_price_ht_cents' => 10000],
+            ],
+        ]);
+        $html = $this->pdf->renderHtml($id);
+        $this->assertStringContainsString('Valable 3 mois', $html);
+        // Prérempli depuis les réglages : 30 % de 120,00 € TTC
+        $this->assertStringContainsString('Acompte à la signature de 30 %, soit 36,00 €.', $html);
     }
 
     public function testQuoteHtmlEmbedsCompanySignature(): void
@@ -133,7 +168,9 @@ final class PdfTemplateTest extends IntegrationTestCase
         ]);
         $html = $this->pdf->renderHtml($id);
         $this->assertStringContainsString('Acompte fournitures', $html);
+        $this->assertStringContainsString('- 110,00 €', $html);
         $this->assertStringContainsString('Reste à payer', $html);
+        $this->assertStringNotContainsString('Valable', $html);
         $this->assertStringContainsString('Paiement à réception.', $html);
         $this->assertStringNotContainsString('Bon pour travaux', $html);
     }

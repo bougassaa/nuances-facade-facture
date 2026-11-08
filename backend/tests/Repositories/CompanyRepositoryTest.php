@@ -44,6 +44,39 @@ final class CompanyRepositoryTest extends IntegrationTestCase
         $this->assertArrayHasKey('year', $company['counters']);
     }
 
+    public function testQuoteDepositPercentAndValidityMonthsAreSettings(): void
+    {
+        $repo = new CompanyRepository($this->pdo(), dirname(__DIR__, 2) . '/storage/logos');
+        $repo->update(['name' => 'Nuances Test', 'quote_deposit_percent' => 40, 'quote_validity_months' => 3]);
+
+        $company = $repo->get();
+        $this->assertSame(40, (int) $company['quote_deposit_percent']);
+        $this->assertSame(3, (int) $company['quote_validity_months']);
+        $this->assertArrayNotHasKey('legal_quote_validity', $company);
+
+        // Absents de la requête : les valeurs déjà enregistrées sont conservées.
+        $repo->update(['name' => 'Nuances Test']);
+        $company = $repo->get();
+        $this->assertSame(40, (int) $company['quote_deposit_percent']);
+        $this->assertSame(3, (int) $company['quote_validity_months']);
+
+        $repo->update(['name' => 'Nuances Test', 'quote_deposit_percent' => 30, 'quote_validity_months' => 2]);
+    }
+
+    public function testRejectsDepositPercentAbove100(): void
+    {
+        $repo = new CompanyRepository($this->pdo(), dirname(__DIR__, 2) . '/storage/logos');
+        $this->expectException(\InvalidArgumentException::class);
+        $repo->update(['name' => 'Nuances Test', 'quote_deposit_percent' => 120]);
+    }
+
+    public function testRejectsNegativeValidityMonths(): void
+    {
+        $repo = new CompanyRepository($this->pdo(), dirname(__DIR__, 2) . '/storage/logos');
+        $this->expectException(\InvalidArgumentException::class);
+        $repo->update(['name' => 'Nuances Test', 'quote_validity_months' => -1]);
+    }
+
     public function testSaveSignatureCropsBlankMarginsAndDeleteRemovesIt(): void
     {
         if (!function_exists('imagecreatetruecolor')) {
